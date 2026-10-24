@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-# sewn
+# sewn — Verified PHP Security Repairs
 
 **Find a security issue. Prepare a tested fix. Keep the owner in control.**
 
@@ -33,7 +33,7 @@ Public assessment examines the submitted page and its bounded redirects. It is n
 
 ## Quick start
 
-Run from a repository checkout. The application serves the landing page, dashboard, API, and assets from one local address.
+Run from a repository checkout on macOS or Linux; the controller requires Unix process locking. Native Windows is not currently supported. The application serves the landing page, dashboard, API, and assets from one local address.
 
 | Requirement | Needed for |
 | --- | --- |
@@ -188,7 +188,7 @@ All other settings, including upload/post limits, and all application source rem
 
 With all capabilities selected, each phase runs 11 fixed checks: runtime version; four settings and hidden PHP banner; homepage; valid/invalid contact responses; and upload byte count/hash. The upload uses a real random 3 MiB payload. Contact checks validate response behavior, not email delivery. Baseline business/runtime checks must pass; candidate checks must all pass. Missing, duplicated, or inconsistent evidence rejects the repair.
 
-The sandbox uses pinned images, read-only source/root filesystem, a non-root application process, a separate verifier identity, temporary writable storage, and bounded resources/time. It has no external network access, published ports, host credentials, or Docker socket; HTTP verification uses container-local loopback. Source and configuration sizes are bounded; unsupported file types and profiles fail closed. Owned scratch/container/image cleanup runs afterward; this is not a claim of forensic Docker-cache erasure.
+The sandbox uses pinned images, read-only source/root filesystem, a non-root application process, a separate verifier identity, temporary writable storage, and bounded resources/time. It has no external network access, published ports, host credentials, or Docker socket; HTTP verification uses container-local loopback. Source and configuration sizes are bounded; unsupported file types and profiles fail closed. Repository snapshots are materialized locally for these checks; cleanup removes owned scratch directories, containers, and final images afterward.
 
 Publication reconstructs and hashes the exact verified candidate, rechecks the default-branch head, and creates a deterministic repair branch and **draft** PR. Idempotent retry handling reconciles uncertain GitHub outcomes instead of blindly creating another PR. It never force-updates the default branch, merges the repair, or deploys it.
 
