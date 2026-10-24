@@ -1,6 +1,6 @@
 # Four-Person Hackathon Work Plan
 
-Team: **Sujan plus three teammates**. Teammate 2, Teammate 3, and Teammate 4 are role labels until names are supplied.
+Team: **Sujan plus three teammates**. Nicholas, Teammate 3, and Teammate 4 are role labels until names are supplied.
 
 Deliver the four-site local prototype in [plan.md](plan.md). Use [todo.md](todo.md) for acceptance criteria. The assignments below define who edits each file; task dependencies are integration gates, not a reason to wait before starting isolated work.
 
@@ -9,7 +9,7 @@ Deliver the four-site local prototype in [plan.md](plan.md). Use [todo.md](todo.
 | Person | Responsibility | Start immediately | Finished contribution |
 | --- | --- | --- | --- |
 | **Sujan — core product engineer and technical lead** | **Security assessment, core repair engine, AI planner, policy enforcement, recovery decisions, verified repair memory, fleet execution, and final integration** | Code assessment/policy and the bounded controller against fake deployment/verifier/planner implementations. | Sujan's working engine determines what needs repair and drives real planning, staging, verification, revision, activation, recovery, and reuse across sites. |
-| **Teammate 2 — runtime and verification** | Docker fixtures, deployment adapter, real HTTP checks, restoration, and reset | Build the first PHP fixture and verify the original/fixed image availability. | Four local sites, immutable candidates, real upload tests, same-address activation, and verified original restoration. |
+| **Nicholas — runtime and verification** | Docker fixtures, deployment adapter, real HTTP checks, restoration, and reset | Build the first PHP fixture and verify the original/fixed image availability. | Four local sites, immutable candidates, real upload tests, same-address activation, and verified original restoration. |
 | **Teammate 3 — backend and platform** | Shared contracts, package setup, FastAPI, approvals, persistence, locks, restart reconciliation, and CI | Ship the package skeleton and shared contracts first; develop API behavior against a fake repair service. | A reproducible backend that accepts approved work once, persists progress, survives restart, and serves the UI. |
 | **Teammate 4 — UI owner** | **All dashboard UI, styles, browser behavior, report screens, accessibility, and demo presentation** | Build the screens using clearly labeled local mock responses matching section 4. | A usable fleet → assessment → approval → progress → report experience connected to the real API. |
 
@@ -22,7 +22,7 @@ The repository has no application code yet, so adopt these separate packages now
 | Owner | Exclusive paths |
 | --- | --- |
 | **Sujan** | `src/patchpilot/core/`, `config/advisories.json`, `tests/core/`, `scripts/rehearse.py`, `docs/evaluation.md`, `tasks/`, root `PatchPilot_*.md` specifications |
-| **Teammate 2** | `src/patchpilot/runtime/`, `fixtures/`, `config/fleet.json`, `tests/runtime/` |
+| **Nicholas** | `src/patchpilot/runtime/`, `fixtures/`, `config/fleet.json`, `tests/runtime/` |
 | **Teammate 3** | `src/patchpilot/backend/`, `src/patchpilot/shared/`, `src/patchpilot/__init__.py`, `tests/backend/`, `tests/conftest.py`, `pyproject.toml`, `uv.lock`, `.python-version`, `.gitignore`, `.github/`, `README.md`, `docs/decisions/` |
 | **Teammate 4** | `src/patchpilot/web/`, `tests/ui/`, `docs/demo/` |
 
@@ -30,7 +30,7 @@ Rules that keep edits separate:
 
 1. Teammate 4 owns every HTML, CSS, browser JavaScript, and UI mock file. Backend integration changes routes/context in `backend/`, not UI files.
 2. Teammate 3 alone edits shared models, dependency manifests, lockfiles, common test fixtures, and CI. Request additions in a PR comment; do not independently regenerate `uv.lock`.
-3. Sujan owns advisory policy; Teammate 2 owns the fleet manifest. Exchange image digests and site requirements instead of editing each other's configuration file.
+3. Sujan owns advisory policy; Nicholas owns the fleet manifest. Exchange image digests and site requirements instead of editing each other's configuration file.
 4. Put each person's tests under their owned test directory. Keep private test doubles there; only Teammate 3 edits `tests/conftest.py`.
 5. Sujan updates the shared planning checklists after merges. Other teammates report progress in their PR descriptions, avoiding four people editing this file or `todo.md`.
 6. Leave `AGENTS.md` unchanged. Add new files only inside an owned path; agree on an owner before adding a new shared root file.
@@ -47,13 +47,13 @@ Exclusive ownership prevents planned same-file edits. Shared contracts and frequ
 
 **First PRs:** assessment/policy plus focused tests, followed by controller transitions using private fakes. Cover a passing candidate, failed staging, one revision, and exhausted attempts. This can begin before Docker, the API, or UI is ready.
 
-**Then:** integrate Teammate 2's adapter/verifier; code activation/recovery decisions and interrupted-run recovery; integrate the real Anthropic planner; implement exact compatibility keys and recipe eligibility; process the fleet sequentially. Teammate 3 provides persistence through store interfaces and invokes Sujan's recovery service at startup. Wire CLI commands to the same engine.
+**Then:** integrate Nicholas's adapter/verifier; code activation/recovery decisions and interrupted-run recovery; integrate the real Anthropic planner; implement exact compatibility keys and recipe eligibility; process the fleet sequentially. Teammate 3 provides persistence through store interfaces and invokes Sujan's recovery service at startup. Wire CLI commands to the same engine.
 
 **Done when:** a real approved repair passes live checks; failures produce accurate rejection/restoration outcomes; matching sites reuse a verified recipe with fresh checks. Model output cannot change tests or execute arbitrary commands. Sujan leads integration and the technical demo explanation.
 
-**Task leads:** 02, 06, 08, 09, 11, 12, 13, 14, 19, 21. In 09/11, Teammate 2 implements Docker primitives and Teammate 3 implements persistence/startup plumbing; Sujan implements the recovery behavior.
+**Task leads:** 02, 06, 08, 09, 11, 12, 13, 14, 19, 21. In 09/11, Nicholas implements Docker primitives and Teammate 3 implements persistence/startup plumbing; Sujan implements the recovery behavior.
 
-### Teammate 2: Docker, fixtures, and verification
+### Nicholas: Docker, fixtures, and verification
 
 **Branch:** `feature/runtime-verification`
 
@@ -108,7 +108,7 @@ The implemented engine interfaces are in [core/ports.py](../src/patchpilot/core/
 | `clinic-a` | `http://127.0.0.1:8083` | Homepage, contact, and real 3 MiB upload |
 | `clinic-b` | `http://127.0.0.1:8084` | Same template/capabilities as `clinic-a` |
 
-These are planned bindings, not currently running sites. Teammate 2 checks availability before starting them. If a port is occupied, report it and update the manifest/UI mocks through their owners; never stop an unrelated service. Candidate ports are separately allocated on loopback.
+These are planned bindings, not currently running sites. Nicholas checks availability before starting them. If a port is occupied, report it and update the manifest/UI mocks through their owners; never stop an unrelated service. Candidate ports are separately allocated on loopback.
 
 ### Module boundaries
 
@@ -116,12 +116,12 @@ These are planned bindings, not currently running sites. Teammate 2 checks avail
 | --- | --- | --- |
 | Sujan | `assess(site, snapshot, checks, policy) -> Assessment` | Match the observed runtime to approved advisories; distinguish applicability, baseline failure, and unsupported environments. |
 | Sujan | `Planner.propose(context, failures, timeout_s=...) -> ProposedPlan` | Model output contains only image alias, profile ID, and rationale; the adapter adds provenance, model/message IDs, and usage. |
-| Teammate 2 | `Runtime.inspect(site, timeout_s=...) -> DeploymentSnapshot` | Return actual original identity/settings and observed serving information. |
-| Teammate 2 | `Runtime.stage(site, validated_plan, run_id, attempt, timeout_s=...) -> Candidate` | The validated plan supplies the approved digest/profile. Return a normalized candidate snapshot with its endpoint, content/image identity, and handle. |
-| Teammate 2 | `Verifier.check(site, deployment, phase, timeout_s=...) -> tuple[CheckResult, ...]` | Same assertions, with baseline/candidate/live/restoration expectations. |
-| Teammate 2 | `Runtime.activate(site, candidate, original, timeout_s=...) -> DeploymentSnapshot` | Use the tested content at the original address; raise a typed failure if uncertain. |
-| Teammate 2 | `Runtime.restore(site, original, timeout_s=...) -> DeploymentSnapshot` | Restore the retained original; verifier independently checks restoration. |
-| Teammate 2 | `Runtime.cleanup(site, run_id, attempt, timeout_s=...) -> None` | Remove only staging resources owned by that run/attempt, including partial staging without a returned handle; raise on failure. |
+| Nicholas | `Runtime.inspect(site, timeout_s=...) -> DeploymentSnapshot` | Return actual original identity/settings and observed serving information. |
+| Nicholas | `Runtime.stage(site, validated_plan, run_id, attempt, timeout_s=...) -> Candidate` | The validated plan supplies the approved digest/profile. Return a normalized candidate snapshot with its endpoint, content/image identity, and handle. |
+| Nicholas | `Verifier.check(site, deployment, phase, timeout_s=...) -> tuple[CheckResult, ...]` | Same assertions, with baseline/candidate/live/restoration expectations. |
+| Nicholas | `Runtime.activate(site, candidate, original, timeout_s=...) -> DeploymentSnapshot` | Use the tested content at the original address; raise a typed failure if uncertain. |
+| Nicholas | `Runtime.restore(site, original, timeout_s=...) -> DeploymentSnapshot` | Restore the retained original; verifier independently checks restoration. |
+| Nicholas | `Runtime.cleanup(site, run_id, attempt, timeout_s=...) -> None` | Remove only staging resources owned by that run/attempt, including partial staging without a returned handle; raise on failure. |
 | Teammate 3 | `RunStore` / `RecipeStore` / `EventSink` | Persist typed records atomically and append ordered events; expose no raw paths to the model. |
 | Sujan | `RepairController.run(site, approval, run_id=...) -> RunResult` | Own bounded state transitions, recipe eligibility, retries, activation gates, and event production. |
 | Sujan | Planned: `recover_interrupted(record, dependencies)` | Decide recovery within the recorded approval and observed state; backend startup invokes this instead of inventing its own recovery rules. |
@@ -185,7 +185,7 @@ States: `QUEUED`, `ASSESSING`, `PLANNING`, `STAGING`, `VERIFYING`, `REVISING`, `
 
 Use relative checkpoints rather than waiting for each numbered task to finish globally. Targets depend on the remaining hackathon time and tool readiness.
 
-| Checkpoint | Sujan | Teammate 2 | Teammate 3 | Teammate 4 |
+| Checkpoint | Sujan | Nicholas | Teammate 3 | Teammate 4 |
 | --- | --- | --- | --- | --- |
 | **Start now** | State-machine tests with fakes | First PHP fixture and image checks | Package/contracts bootstrap PR | Screens and labeled JSON mock responses |
 | **First shared base; target 20–30 minutes** | Adopt shared interfaces | Adopt shared interfaces | Merge bootstrap to `main` | Match shared JSON fields |
@@ -219,7 +219,7 @@ git push -u origin HEAD
 
 The staging example is Sujan's; each teammate uses their own paths and stages only files they created or changed. No one uses `git add .` to collect another person's local work.
 
-Before the next PR, commit your work, run `git fetch origin`, and merge `origin/main` into your feature branch. Do not merge teammates' feature branches into each other or force-push `main`. Each branch has one writer. Sujan coordinates merges; Teammate 2 reviews Sujan's core changes. Each PR lists its contract dependencies, checks run, and remaining integration limits; UI PRs include screenshots.
+Before the next PR, commit your work, run `git fetch origin`, and merge `origin/main` into your feature branch. Do not merge teammates' feature branches into each other or force-push `main`. Each branch has one writer. Sujan coordinates merges; Nicholas reviews Sujan's core changes. Each PR lists its contract dependencies, checks run, and remaining integration limits; UI PRs include screenshots.
 
 ## 7. Shared completion gate
 
