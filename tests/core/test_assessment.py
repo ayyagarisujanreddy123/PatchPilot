@@ -133,6 +133,7 @@ def test_assessment_fingerprint_changes_when_deployment_policy_or_requirements_c
         (site(), replace(original(), configuration_hash="changed"), policy()),
         (site(), original(), replace(policy(), revision="new-policy")),
         (replace(site(), template_revision="new-template"), original(), policy()),
+        (replace(site(), verifier_revision="checks-v2"), original(), policy()),
         (site(), original(), replace(policy(), image_digest="sha256:" + "c" * 64)),
     ]
 

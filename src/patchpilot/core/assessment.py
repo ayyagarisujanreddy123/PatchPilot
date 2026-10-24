@@ -110,6 +110,7 @@ def _fingerprint(
             "id": site.site_id,
             "baseUrl": site.base_url,
             "template": site.template_revision,
+            "verifierRevision": site.verifier_revision,
             "capabilities": sorted(site.capabilities),
         },
         "snapshot": asdict(snapshot),

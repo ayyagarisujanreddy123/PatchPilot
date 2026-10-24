@@ -11,6 +11,7 @@ class Site:
     base_url: str
     template_revision: str
     capabilities: frozenset[str] = frozenset({"homepage", "contact"})
+    verifier_revision: str = "core-http-v1"
 
     @property
     def required_checks(self) -> frozenset[str]:
@@ -49,6 +50,9 @@ class CheckResult:
     message: str = ""
     phase: str = ""
     site_id: str = ""
+    duration_ms: float | None = None
+    expected: str | int | bool | None = None
+    observed: str | int | bool | None = None
 
 
 def checks_complete(site: Site, checks: tuple[CheckResult, ...]) -> bool:
