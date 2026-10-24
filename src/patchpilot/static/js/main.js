@@ -30,6 +30,7 @@ import {
 } from "./api.js";
 import { matchRegisteredUrl } from "./live.js";
 import { validateWebsiteUrl, WEBSITE_ACTIVE_STATES } from "./website.js";
+import { repositoryRepairHandlers, refreshRepositoryRepairs, stopRepositoryRepairPolling } from "./repositoryRepairs.js";
 import {
     renderBackendBanner,
     renderHeader,
@@ -268,6 +269,7 @@ const eventsHandlers = {
 };
 
 const websiteHandlers = {
+    repository: repositoryRepairHandlers,
     onUrlChange: (websiteUrl) => patchUi({ websiteUrl, websiteError: null }, { render: Boolean(getState().ui.websiteError) }),
     onExample: (websiteUrl) => {
         patchUi({ websiteUrl, websiteError: null });
@@ -338,6 +340,7 @@ async function refreshWebsiteState(forceHistory = false) {
         }
         if (Object.keys(update).some((key) => update[key] !== getState()[key])) { patchState(update); }
         const latest = getState().websiteReports[getState().ui.selectedAssessmentId];
+        refreshRepositoryRepairs(latest);
         if (getState().ui.route === "scan") {
             if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
             if (WEBSITE_ACTIVE_STATES.has(latest?.state) || getState().ui.websiteSubmitting || errors.length) {
@@ -355,6 +358,7 @@ async function refreshWebsiteState(forceHistory = false) {
 
 async function refreshCurrent() {
     if (getState().ui.route === "scan") { await refreshWebsiteState(); return; }
+    stopRepositoryRepairPolling();
     await refreshState();
     await refreshEvents();
     await refreshRunIfNeeded();
@@ -519,7 +523,7 @@ function syncApprovalEscape(snapshot) {
 function renderApp(snapshot) {
     const focused = document.activeElement;
     const focusedId = focused?.id;
-    const inputValue = ["registered-site-url", "website-url"].includes(focusedId) ? focused.value : null;
+    const inputValue = ["registered-site-url", "website-url", "repository-url"].includes(focusedId) ? focused.value : null;
     const selection = inputValue != null ? [focused.selectionStart, focused.selectionEnd] : null;
     const disclosureState = [...document.querySelectorAll("details[id]")].map((detail) => [detail.id, detail.open]);
     const scrollState = [...document.querySelectorAll(".table-scroll[id], .drawer__body[id], #event-log-scroll-region")]
@@ -621,7 +625,7 @@ function bindGlobalHandlers() {
     window.addEventListener("hashchange", () => {
         const { route, selectedSiteId, selectedAssessmentId } = parseRoute();
         patchUi({ route, selectedSiteId, selectedAssessmentId, runError: null });
-        document.title = `${route === "scan" ? "Website assessment" : route === "run" ? "Repair report" : route === "events" ? "Lab activity" : "Repair lab"} · PatchPilot`;
+        document.title = `${route === "scan" ? "Website assessment" : route === "run" ? "Repair report" : route === "events" ? "Lab activity" : "Repair lab"} · sewn`;
         document.getElementById("app-main")?.focus({ preventScroll: true });
         refreshCurrent();
     });
@@ -650,11 +654,11 @@ function showBootError(err) {
         el(
             "p",
             { className: "panel__lede" },
-            "PatchPilot could not finish loading. Open the browser developer console for details.",
+            "sewn could not finish loading. Open the browser developer console for details.",
         ),
         el("p", { className: "panel__status", attrs: { role: "alert" } }, message),
     );
-    console.error("PatchPilot boot failed:", err);
+    console.error("sewn boot failed:", err);
 }
 
 async function boot() {
@@ -663,7 +667,7 @@ async function boot() {
         const { route, selectedSiteId, selectedAssessmentId } = parseRoute();
         const requestedUrl = new URLSearchParams(window.location.search).get("url")?.slice(0, 2048) ?? "";
         patchUi({ route, selectedSiteId, selectedAssessmentId, mockMode: isMockMode(), siteUrl: requestedUrl, websiteUrl: requestedUrl });
-        document.title = `${route === "scan" ? "Website assessment" : "Repair lab"} · PatchPilot`;
+        document.title = `${route === "scan" ? "Website assessment" : "Repair lab"} · sewn`;
 
         subscribe(renderApp);
         bindGlobalHandlers();
@@ -676,6 +680,7 @@ async function boot() {
 }
 
 window.addEventListener("pagehide", () => {
+    stopRepositoryRepairPolling();
     if (pollTimer) {
         clearTimeout(pollTimer);
     }

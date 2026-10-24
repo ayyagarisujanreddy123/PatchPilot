@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-    <title>PatchPilot</title>
-    <rect width="64" height="64" rx="14" fill="#235ee8"/>
-    <path d="M19 49V15h15c10 0 15 5 15 13s-5 13-15 13h-6v8zm9-16h6c4 0 6-2 6-5s-2-5-6-5h-6z" fill="white"/>
+    <title>sewn</title>
+    <mask id="check"><rect width="64" height="64" fill="white"/><path d="m19 31 10 9 18-20" fill="none" stroke="black" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></mask>
+    <path d="M30 4a5 5 0 0 1 4 0l18 9a6 6 0 0 1 4 6v12c0 13-9 23-24 30C17 54 8 44 8 31V19a6 6 0 0 1 4-6z" fill="#008b95" mask="url(#check)"/>
+    <rect x="43" y="9" width="17" height="15" rx="4" fill="#c9f044" transform="rotate(22 51.5 16.5)"/>
 </svg>

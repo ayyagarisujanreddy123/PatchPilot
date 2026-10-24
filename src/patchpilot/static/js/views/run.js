@@ -149,7 +149,7 @@ function outcomeBannerMeta(run, site) {
         return {
             tone: "danger",
             title: "Restoration failed",
-            body: "PatchPilot could not restore the original site. Needs human help.",
+            body: "sewn could not restore the original site. Needs human help.",
         };
     }
     if (outcome === "needs_help" || status === "needs_help") {

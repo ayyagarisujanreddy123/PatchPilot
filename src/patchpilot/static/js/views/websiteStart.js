@@ -30,11 +30,14 @@ export function renderWebsiteStart(snapshot, report, handlers) {
     ]);
     form.addEventListener("submit", (event) => { event.preventDefault(); if (!active) { handlers.onSubmit(input.value); } });
     if (websiteExamples.length) {
-        form.append(el("div", { className: "website-examples" }, [el("span", {}, "Just exploring?"), ...websiteExamples.map((example) => {
-            const button = el("button", { className: "website-example-button", attrs: { type: "button", id: `website-example-${example.id}`, title: `${example.title} · fills the form without starting a scan` } }, ["Try the PHP demo", icon("arrow")]);
+        form.append(el("div", { className: "website-examples" }, [el("span", {}, "Just exploring?"), ...websiteExamples.map((example, index) => {
+            const button = el("button", { className: "website-example-button", attrs: { type: "button", id: `website-example-${example.id}`, "aria-describedby": "website-samples-help", title: `${example.title} · ${example.connectionSupport === "CONNECTED" ? "connected repair demo" : "assessment only"} · fills the form without starting a scan` } }, [index === 0 ? "Try the PHP demo" : example.title, icon("arrow")]);
             button.addEventListener("click", () => handlers.onExample(example.url));
             return button;
         })]));
+        form.append(el("p", { className: "hint", id: "website-samples-help" }, websiteExamples.some((example) => example.connectionSupport === "CONNECTED" || example.repositoryUrl)
+            ? "The connected PHP demo supports the repository workflow after identity checks. Other public samples are assessment only. Choosing a sample fills the URL; it does not start an assessment."
+            : "Public samples support website assessment only. Choosing one fills the URL; it does not start an assessment."));
     }
     return el("section", { className: `website-start${report ? " website-start--compact" : ""}`, attrs: { "aria-label": "Start a website assessment" } }, [form, report ? null : scene(),
         report ? null : el("p", { className: "website-start__note" }, [icon("shield"), "Live evidence. Real AI analysis. Your review before any changes."])]);

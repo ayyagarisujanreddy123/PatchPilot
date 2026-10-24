@@ -1,5 +1,6 @@
 """Website assessment jobs use real admission/persistence with injected agents."""
 
+import json
 import threading
 import time
 from contextlib import contextmanager
@@ -249,12 +250,173 @@ def test_examples_are_metadata_and_do_not_start_collection(tmp_path):
     with website_client(tmp_path, agent) as client:
         response = client.get("/api/website-assessments/examples")
         assert response.status_code == 200
-        example = response.json()["items"][0]
+        items = response.json()["items"]
+        assert [item["url"] for item in items] == [
+            "http://php.testsparker.com/",
+            "https://www.php.net/",
+            "https://demo.phpipam.net/",
+        ]
+        example = items[0]
         assert example["url"] == "http://php.testsparker.com/"
         assert example["sourceUrl"].startswith("https://www.invicti.com/")
-        assert not ({"findings", "phpVersion", "evidence", "analysis"} & set(example))
+        for item in items:
+            assert item["kind"] == "assessment only"
+            assert item["connectionSupport"] == "ASSESSMENT_ONLY"
+            assert "repositoryUrl" not in item
+            assert not ({"findings", "phpVersion", "evidence", "analysis"} & set(item))
         assert agent.calls == 0
         assert client.get("/api/website-assessments").json()["items"] == []
+
+
+def test_configured_connected_example_is_appended_without_replacing_public_examples(
+    tmp_path,
+):
+    directory = tmp_path / "connected-demo"
+    directory.mkdir()
+    (directory / "public.json").write_text(
+        json.dumps(
+            {
+                "url": "https://owned-demo.example/",
+                "repositoryUrl": "https://github.com/operator/patchpilot-connected-demo",
+            }
+        )
+    )
+    agent = CompletingAgent()
+    with website_client(tmp_path, agent) as client:
+        items = client.get("/api/website-assessments/examples").json()["items"]
+        assert len(items) == 4
+        connected = items[0]
+        assert connected["id"] == "connected-php-demo"
+        assert connected["url"] == "https://owned-demo.example/"
+        assert connected["kind"] == "connected repair demo"
+        assert connected["connectionSupport"] == "CONNECTED"
+        assert (
+            connected["repositoryUrl"]
+            == "https://github.com/operator/patchpilot-connected-demo"
+        )
+        assert "matching deployment marker" in connected["description"]
+        assert all(item["connectionSupport"] == "ASSESSMENT_ONLY" for item in items[1:])
+        assert not ({"findings", "phpVersion", "evidence", "analysis"} & set(connected))
+        assert agent.calls == 0
+        assert not list((tmp_path / "website-assessments").glob("*.json"))
+        assert not list((tmp_path / "repository-repairs").rglob("*.json"))
+
+
+def test_connected_catalog_can_list_multiple_valid_owned_demos_and_ignores_invalid_entries(
+    tmp_path,
+):
+    directory = tmp_path / "connected-demo"
+    directory.mkdir()
+    first = {
+        "url": "https://first-demo.example/",
+        "repositoryUrl": "https://github.com/operator/first-demo",
+    }
+    second = {
+        "url": "https://second-demo.example/",
+        "repositoryUrl": "https://github.com/operator/second-demo.git",
+    }
+    (directory / "public.json").write_text(
+        json.dumps(
+            {
+                "items": [
+                    first,
+                    {
+                        "url": "http://127.0.0.1/",
+                        "repositoryUrl": first["repositoryUrl"],
+                    },
+                    second,
+                    first,
+                ]
+            }
+        )
+    )
+    with website_client(tmp_path, CompletingAgent()) as client:
+        items = client.get("/api/website-assessments/examples").json()["items"]
+        owned = [item for item in items if item["connectionSupport"] == "CONNECTED"]
+        assert [item["url"] for item in owned] == [first["url"], second["url"]]
+        assert owned[1]["repositoryUrl"] == "https://github.com/operator/second-demo"
+        assert len({item["id"] for item in items}) == 5
+        assert len(items) == 5
+
+
+def test_invalid_or_secret_bearing_demo_metadata_keeps_the_public_catalog(tmp_path):
+    directory = tmp_path / "connected-demo"
+    directory.mkdir()
+    path = directory / "public.json"
+    repository = "https://github.com/operator/patchpilot-connected-demo"
+    invalid = [
+        None,
+        [],
+        {"url": "https://demo.example/"},
+        {"url": 123, "repositoryUrl": repository},
+        {"url": "http://localhost/", "repositoryUrl": repository},
+        {"url": "http://10.0.0.1/", "repositoryUrl": repository},
+        {"url": "http://[::1]/", "repositoryUrl": repository},
+        {"url": "https://user:PRIVATE@demo.example/", "repositoryUrl": repository},
+        {"url": "https://demo.example/?token=PRIVATE", "repositoryUrl": repository},
+        {"url": "https://demo.example/#PRIVATE", "repositoryUrl": repository},
+        {"url": "https://demo.example/account", "repositoryUrl": repository},
+        {
+            "url": "https://demo.example/",
+            "repositoryUrl": "https://github.com.attacker.example/operator/demo",
+        },
+        {
+            "url": "https://demo.example/",
+            "repositoryUrl": "https://PRIVATE@github.com/operator/demo",
+        },
+        {
+            "url": "https://demo.example/",
+            "repositoryUrl": f"{repository}?token=PRIVATE",
+        },
+        {
+            "url": "https://demo.example/",
+            "repositoryUrl": repository,
+            "findings": ["PRIVATE"],
+        },
+        {"items": [{"url": "https://demo.example/", "repositoryUrl": repository}] * 6},
+    ]
+    agent = CompletingAgent()
+    with website_client(tmp_path, agent) as client:
+        for metadata in invalid:
+            path.write_text(json.dumps(metadata))
+            response = client.get("/api/website-assessments/examples")
+            assert response.status_code == 200
+            assert len(response.json()["items"]) == 3
+            assert all(
+                item["connectionSupport"] == "ASSESSMENT_ONLY"
+                for item in response.json()["items"]
+            )
+            assert "PRIVATE" not in response.text
+        path.write_text("{not valid JSON")
+        assert len(client.get("/api/website-assessments/examples").json()["items"]) == 3
+        path.write_bytes(b"x" * (16 * 1024 + 1))
+        assert len(client.get("/api/website-assessments/examples").json()["items"]) == 3
+        assert agent.calls == 0
+
+
+def test_connected_catalog_ignores_symlinks_and_nonregular_metadata_without_blocking(
+    tmp_path,
+):
+    import os
+
+    directory = tmp_path / "connected-demo"
+    directory.mkdir()
+    target = tmp_path / "not-public-metadata.json"
+    target.write_text(
+        json.dumps(
+            {
+                "url": "https://demo.example/",
+                "repositoryUrl": "https://github.com/operator/demo",
+            }
+        )
+    )
+    path = directory / "public.json"
+    path.symlink_to(target)
+    with website_client(tmp_path, CompletingAgent()) as client:
+        assert len(client.get("/api/website-assessments/examples").json()["items"]) == 3
+        path.unlink()
+        os.mkfifo(path)
+        assert len(client.get("/api/website-assessments/examples").json()["items"]) == 3
 
 
 def test_rate_limit_has_retry_after_and_does_not_call_provider(tmp_path):

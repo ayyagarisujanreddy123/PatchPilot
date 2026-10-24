@@ -1,104 +1,275 @@
-# PatchPilot
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="src/patchpilot/static/assets/sewn-logo-dark.svg">
+    <img src="src/patchpilot/static/assets/sewn-logo.png" alt="sewn logo" width="380">
+  </picture>
+</p>
 
-PatchPilot's default dashboard assesses a real public website URL, collects fresh HTTP response evidence, and obtains Anthropic remediation guidance tied to those observations. It shows collection and agent activity, PHP detection confidence, evidence-linked findings, suggested configuration/code, and the assessment's coverage and limitations. The separate **Repair lab** retains the approved local Apache/PHP deployment-repair workflow.
+# sewn — Verified PHP Security Repairs
 
-The implementation separates `webscan/` public HTTP collection, rules, and Anthropic analysis; `core/` local repair assessment, policy, planning, and control; `runtime/` Docker lifecycle and HTTP verification; `backend/` sessions, job admission, persistence, and recovery; `shared/` camelCase contracts; and `static/` the landing page and dashboard. Python code lives under `src/patchpilot/`, tests under `tests/`, and local repair fixtures under `fixtures/`.
+**Find a security issue. Prepare a tested fix. Keep the owner in control.**
 
-## Install and launch
+sewn helps small businesses and nonprofits understand observable security issues on their PHP websites and turn supported findings into reviewable GitHub changes. Its Anthropic-powered agent, **Victor**, collects fresh website evidence, explains the findings, proposes a constrained repair, and shows independent verification before a draft pull request is created.
 
-Python 3.12 or newer and [uv](https://docs.astral.sh/uv/) are required. From the repository root:
+**Status:** working local MVP with a real website-to-draft-PR demonstration. Public assessment is available for public URLs; automated repair currently supports four PHP configuration settings in repositories that meet the connection contract. The Python package and repository retain the original `patchpilot` name.
+
+[Quick start](#quick-start) · [User flow](#user-flow) · [Architecture](#architecture) · [Repository setup](#connect-a-php-repository) · [Testing](#development-and-testing) · [Roadmap](#technical-roadmap)
+
+## Why this project exists
+
+Website owners often receive security findings without a practical way to act on them. A suggested patch also raises another question: will the homepage, contact form, or upload still work afterward?
+
+sewn connects evidence, a small proposed change, and repeatable checks in one workflow. Owners start with their website URL. Repository access is requested when they want a tested repair, and publication requires a separate review action. Maintainers can inspect the exact diff, check results, and model provenance rather than relying on an unexplained success message.
+
+## What works today
+
+| Workflow | Input | Result | Changes a deployment? |
+| --- | --- | --- | --- |
+| Website assessment | Public HTTP(S) URL | Fresh HTTP evidence, PHP indicators, findings, and Victor's suggested fixes | No |
+| Connected GitHub repair | Completed assessment, matching repository, deployment marker, and supported profile | Baseline/candidate checks, exact configuration diff, and an owner-requested draft PR | No; merging and deployment remain manual |
+| Repair lab | Explicitly approved, registered local Docker fixtures | Staging, activation, live verification, recipe reuse, and restoration on failure | Yes, within the registered local lab |
+
+Public assessment examines the submitted page and its bounded redirects. It is not a crawler or a comprehensive penetration test. A PHP version banner is reported evidence, not proof of the installed build or its backported fixes. Arbitrary PHP source repairs, dependency upgrades, and production deployment are outside the connected MVP.
+
+## Quick start
+
+Run from a repository checkout on macOS or Linux; the controller requires Unix process locking. Native Windows is not currently supported. The application serves the landing page, dashboard, API, and assets from one local address.
+
+| Requirement | Needed for |
+| --- | --- |
+| Python 3.12+ and `uv` | Application and Python tests |
+| Anthropic API key | Live Victor analysis and repair proposals |
+| Docker engine with Linux amd64 or arm64 containers | Connected repair verification and the repair lab |
+| GitHub CLI authentication or `GITHUB_TOKEN` | Connecting repositories and creating draft PRs |
+| Node.js; optionally Playwright and axe-core | Frontend verification only; no frontend build step |
 
 ```bash
+git clone https://github.com/ayyagarisujanreddy123/PatchPilot.git
+cd PatchPilot
 uv sync --locked --extra dev
+test -f .env || cp .env.example .env
 ```
 
-Configure `ANTHROPIC_API_KEY` and optionally `ANTHROPIC_MODEL` in the local, ignored `.env` or environment. Keep credentials outside Git, URLs, and dashboard inputs. The Anthropic client uses the fixed provider API destination; missing or failed provider access produces an explicit assessment failure while retaining collected observations.
+Edit the ignored `.env` and replace the placeholder key. Keep an existing `.env` intact.
 
-Start one application process:
+```dotenv
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+ANTHROPIC_MODEL=claude-sonnet-5-5
+# Optional; otherwise use gh auth login on this computer.
+# GITHUB_TOKEN=your-repository-scoped-token
+```
+
+Start one controller process:
 
 ```bash
-uv run --locked --extra dev uvicorn patchpilot.backend.app:app --host 127.0.0.1 --port 8765 --workers 1
+uv run --locked --extra dev uvicorn patchpilot.backend.app:app \
+  --host 127.0.0.1 --port 8765 --workers 1
 ```
 
-Open **[http://127.0.0.1:8765/dashboard](http://127.0.0.1:8765/dashboard)**. This is the single dashboard URL; **Website assessment** is the default task. Public website assessment requires no Docker preparation or repair approval. The product landing page remains at `/`.
+Open **[http://127.0.0.1:8765](http://127.0.0.1:8765)** for the landing page or **[the dashboard](http://127.0.0.1:8765/dashboard)** to begin. Website assessment needs no Docker setup. For Docker workflows, ensure the server process can reach the intended engine; optionally prefix the start command with `DOCKER_CONTEXT=YOUR_CONTEXT`.
 
-## Assess a real website
+## User flow
 
-1. Select **Try the PHP demo** to fill `http://php.testsparker.com/`, or enter a public HTTP(S) page URL. The sample button fills the form only; it does not load precomputed results or start a request.
-2. Select **Assess website**. The backend collects fresh, bounded normal GET responses and records their status, elapsed time, byte count, body SHA-256, and observations.
-3. Watch the current collection or Anthropic message. Generation counts come from the actual provider stream. Expand **Live agent activity** for timestamped updates; no invented percentage is displayed.
-4. Review the compact finding/PHP/fix overview, then open a **Review fix** row under **What to fix first**. Steps and verification appear on demand; **View suggested code** reveals validated code. **All findings** contains every observation.
-5. Open **View technical evidence** for HTTP records, PHP detection, coverage, and **Analysis provenance** (actual model/message/token usage). Finding evidence links open their supporting record automatically. A PHP banner reports a release; it does not prove installed patch/backport status.
+1. **Enter a website URL.** Use a public page you own or are authorized to assess. A demo selection fills the form; it does not preload a result or start an assessment.
+2. **Watch Victor work.** The server collects a normal HTTP response, derives observations, and streams Anthropic analysis into recorded activity. Failures retain partial evidence and an explicit error.
+3. **Review the findings.** The dashboard presents a short overview first. Expand a fix for its steps and suggested code, or open technical evidence for response fingerprints, PHP detection, coverage, and actual model/token provenance.
+4. **Connect the matching GitHub repository.** For a supported website, select the functions to preserve and verify its repository/deployment identity.
+5. **Prepare a tested fix.** The controller checks a baseline, asks Victor for an allowlisted proposal, and tests the exact candidate against the same independent checks.
+6. **Review and publish.** A passing candidate unlocks **Create draft pull request**. Review the diff and results before selecting it. The owner then reviews, merges, deploys, and checks the deployed website separately.
 
-**Ready to review** means collection and analysis completed. Website assessment does not apply a patch or declare a website safe. Suggested changes require owner review and authorized configuration/source access. Public-response findings do not establish source-level vulnerabilities or comprehensive penetration-test coverage.
+An assessment marked complete means evidence collection and analysis finished. A passing candidate means the selected sandbox checks passed. Neither result certifies that the whole website is secure.
 
-Only public HTTP(S) destinations on ports 80/443 are accepted; credentials, query parameters, private/reserved addresses, and unsafe redirect destinations are rejected. Collection uses normal GETs rather than exploit payloads, form submissions, credential use, or server changes. The model receives normalized observations rather than full HTML, cookie values, or credentials.
+### Try the complete demonstration
 
-Collection/provider failures remain `FAILED`, with any partial observations and a clear error. No fixture observation, cached example, or simulated AI result replaces failed live work. Use **Check again** for fresh evidence. Reports belong to the browser's operator session; restarting the controller invalidates that session.
+The [connected repair walkthrough](docs/demo/connected-repair.md) records a real browser, Anthropic, Docker, and GitHub run: the candidate passed **11/11 checks**, including a real 3 MiB upload, and produced a [draft repair PR](https://github.com/ayyagarisujanreddy123/patchpilot-connected-demo/pull/1). This is recorded acceptance, separate from tests that use doubles.
 
-The interface uses system fonts, CSS depth, and reduced-motion-aware transitions without 3D libraries or external assets. Idle/completed scans stop polling; active refreshes update the store once and skip unchanged reports. See the [focused UI contract](docs/design/intuitive-workspace.md).
+To reproduce it with your own dedicated demo repository, run the commands below. The setup script creates a **public** GitHub repository if it is absent, pushes the curated demo code to its `main` branch, and starts the Docker demo. Use a dedicated demo repository; this is separate from the sewn application repository.
 
-See the [demo guide](docs/demo/demo-script.md) for the one-site walkthrough. The guide records a completed 2026-10-24 browser/Anthropic assessment of the public sample, with its actual response fingerprint and provider metadata, separately from test-double checks.
+```bash
+gh auth login
+uv run --locked --extra dev python scripts/setup-connected-demo.py \
+  --repository YOURLOGIN/patchpilot-connected-demo --port 8085
+cloudflared tunnel --url http://127.0.0.1:8085 --no-autoupdate --protocol http2
+```
+
+Keep the PHP server/container and tunnel running, then assess the generated public HTTPS URL. `cloudflared` is optional tooling for this demo; its quick-tunnel address is temporary. Follow the walkthrough for sample metadata. The [demo website guide](docs/demo/demo-sites.md) distinguishes assessment-only examples from the owned repository-repair example.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Owner[Website owner] --> UI[Landing page and dashboard]
+    UI --> API[FastAPI: sessions, CSRF, job admission]
+    API --> Scan[Public HTTP collector and evidence rules]
+    Scan --> Site[Public website]
+    Scan --> Victor[Victor: Anthropic structured analysis]
+    API --> Repair[Connected repair controller]
+    Repair --> GitHub[GitHub: pinned files and draft PR]
+    Repair --> Victor
+    Repair --> Sandbox[Isolated baseline and candidate containers]
+    Sandbox --> Checks[Fixed independent verifier]
+    API --> Lab[Separate approved local repair lab]
+    API --> Records[Local JSON reports and job records]
+```
+
+The backend owns policy and execution. Victor proposes structured changes; it cannot run commands, choose arbitrary files, rewrite the verifier, or authorize publication. Browser updates use active JSON polling; the Anthropic worker consumes the provider stream and records actual progress.
+
+| Module | Responsibility |
+| --- | --- |
+| `webscan/` | Public destination validation, bounded HTTP collection, evidence rules, and analysis |
+| `repairs/` | GitHub identity checks, configuration policy, Victor planning, sandbox checks, and PR publication |
+| `backend/` | API routes, sessions, shared job admission, durable records, and recovery |
+| `core/` | Local repair-lab assessment, approvals, planning, controller, and recipe policy |
+| `runtime/` | Local fixture lifecycle, HTTP verification, activation, restoration, and reset |
+| `shared/` | Typed contracts, ports, and settings |
+| `static/` | HTML, CSS, ES modules, views, and supplied sewn branding |
+
+### Repository layout
+
+```text
+src/patchpilot/                 Application modules listed above
+tests/                         Backend, webscan, repairs, core, and runtime tests
+examples/php-community-site/   Supported connected-demo PHP application
+fixtures/                      Registered local PHP/Apache lab fixtures
+config/                        Lab fleet and advisory configuration
+scripts/                       Connected-demo setup and browser verification
+docs/specs/                    Website and connected-repair contracts
+docs/demo/                     Walkthroughs and recorded acceptance
+docs/design/                   Interface behavior and accessibility guidance
+tasks/                         Original implementation and team plans
+var/                           Ignored runtime records and scratch data
+```
+
+## Connect a PHP repository
+
+Authenticate the local operator with `gh auth login`, or configure `GITHUB_TOKEN` outside Git. The account needs write access, including repository contents and pull requests. The dashboard accepts repository root URLs, `.git` URLs, and browser `/tree/...` links; it always resolves the repository's **default branch**.
+
+The assessed homepage must serve `/.well-known/patchpilot.json` from the same origin:
+
+```json
+{
+  "repository": "OWNER/REPOSITORY",
+  "commit": "FULL_40_CHARACTER_DEFAULT_BRANCH_HEAD_SHA",
+  "siteId": "community-site"
+}
+```
+
+The repository must contain a root `.patchpilot.json` profile, for example:
+
+```json
+{
+  "schemaVersion": 1,
+  "siteId": "community-site",
+  "documentRoot": "public",
+  "phpIni": "config/php.ini",
+  "capabilities": ["homepage", "contact", "upload"],
+  "homepage": "/",
+  "contact": "/contact.php",
+  "upload": "/upload.php"
+}
+```
+
+The marker, site identity, and default-branch commit must agree. Assessments and connections must be fresh; preparation rechecks identity. This is a declared deployment link, not cryptographic build attestation. The marker belongs to the demo/deployment process rather than a file containing its own commit hash.
+
+Supported applications use the profile's simple homepage/contact/upload contract. The MVP does not run Composer, repository installers, arbitrary Dockerfiles, databases, or application-specific browser journeys. Read the [complete connection specification](docs/specs/verified-github-repairs.md) and the [concrete PHP example](examples/php-community-site/) for the expected contact/upload responses before adapting another repository.
+
+### Repair policy and verification
+
+The connected repair can change only these settings in the declared PHP INI file:
+
+```ini
+display_errors = Off
+display_startup_errors = Off
+log_errors = On
+expose_php = Off
+```
+
+All other settings, including upload/post limits, and all application source remain unchanged. Both baseline and candidate use the same pinned PHP 8.3.36 image. This workflow hardens configuration; it does not upgrade the deployed PHP runtime. The sandbox uses PHP's built-in server inside the official Apache image, so passing results do not establish production Apache/rewrite equivalence.
+
+With all capabilities selected, each phase runs 11 fixed checks: runtime version; four settings and hidden PHP banner; homepage; valid/invalid contact responses; and upload byte count/hash. The upload uses a real random 3 MiB payload. Contact checks validate response behavior, not email delivery. Baseline business/runtime checks must pass; candidate checks must all pass. Missing, duplicated, or inconsistent evidence rejects the repair.
+
+The sandbox uses pinned images, read-only source/root filesystem, a non-root application process, a separate verifier identity, temporary writable storage, and bounded resources/time. It has no external network access, published ports, host credentials, or Docker socket; HTTP verification uses container-local loopback. Source and configuration sizes are bounded; unsupported file types and profiles fail closed. Repository snapshots are materialized locally for these checks; cleanup removes owned scratch directories, containers, and final images afterward.
+
+Publication reconstructs and hashes the exact verified candidate, rechecks the default-branch head, and creates a deterministic repair branch and **draft** PR. Idempotent retry handling reconciles uncertain GitHub outcomes instead of blindly creating another PR. It never force-updates the default branch, merges the repair, or deploys it.
+
+## Security, data, and operating model
+
+- **Public collection:** HTTP(S), ports 80/443, public destinations only. Credentials and query parameters are rejected. Every DNS answer and redirect is validated; connections pin the validated address with TLS verification. Collection is limited to normal GETs, up to three redirects, a 30-second collection budget, and bounded response sizes.
+- **Model boundary:** normalized observations and supported configuration/check facts go to Anthropic. Full website HTML, cookie values, repository source, credentials, and raw diagnostic paths are excluded. Provider failure remains visible; simulated or cached results never replace failed live analysis.
+- **Local authentication:** an eight-hour HttpOnly, SameSite=Strict operator cookie scopes website and connected-repair reports. Lab run history is shared by the local controller. Mutations require CSRF and same-origin checks. GitHub access uses the local operator's credentials, not a hosted OAuth connection.
+- **Execution:** run one controller with `--workers 1`. A data-directory process lock and shared exclusive admission prevent overlapping scan, connected-repair, and lab operations. Busy requests return 409; start-rate limits return 429.
+- **Records:** website reports live under `var/website-assessments/`; connections and repairs under `var/repository-repairs/`; lab runs/events under `var/runs/`, with recipes under `var/recipes/`. Reports include real evidence and provider provenance. Repository scratch data is materialized locally during verification.
+- **Restart behavior:** records persist, but operator sessions are held in memory. Restart or expiry invalidates access through that session; account-based history recovery is not implemented. Interrupted jobs are reconciled or marked failed rather than reported as completed.
+
+This is a local, single-controller prototype. Public multiuser hosting needs account authentication, durable authorization/history, a GitHub App or OAuth integration, and an isolated worker deployment model before launch.
 
 ## Separate repair lab
 
-Select **Repair lab**, or visit `/dashboard#/fleet`, to use the four registered local fixtures. This workflow uses `RealRepairService`, the Docker runtime, and the Anthropic planner. It remains separate from public website assessment and can change only registered project deployments within explicit approval.
+Open `/dashboard#/fleet` and select **Prepare demo sites** to create the four registered local PHP/Apache fixtures on ports 8081–8084. Assess sites, review their fingerprints, approve the exact scope, and start a repair. The lab stages a candidate, verifies it, activates it at the original local URL, and repeats the checks. A failed activation triggers restoration; a restored vulnerable original remains unpatched.
 
-For the lab, start the existing authorized Docker context and run the same single application process with that context selected:
+The lab demonstrates runtime/configuration repair and verified recipe reuse across compatible fixtures. Reset affects project-owned resources and retains completed run records. The explicit simulation at `/dashboard?mock=1#/fleet` is labeled simulated and is separate from live website assessment. See the [lab demo guide](docs/demo/demo-script.md) and [core guide](src/patchpilot/core/README.md).
 
-```bash
-DOCKER_CONTEXT=lima-patchpilot-demo uv run --locked --extra dev uvicorn patchpilot.backend.app:app --host 127.0.0.1 --port 8765 --workers 1
-```
+## API overview
 
-Stop an existing application process before changing its context. The variable selects a context for that process; it does not change the user's default context. Supply the actual authorized context name if it differs.
+Read the generated API schema at `/openapi.json`. Start with `GET /api/session` to obtain the session cookie and `{csrfToken}`. Send `X-CSRF-Token` and a matching `Origin` or `Referer` on mutations.
 
-Use **Prepare demo sites** to resolve the approved image digest, build the fixtures, and check ports 8081–8084. Assess selected sites, review their runtime findings, approve the exact assessment fingerprints, and start the repair. Candidate and live checks use the same contract, including real 3 MiB upload size/hash checks on upload fixtures. A restored original remains unpatched. Reset restores the project baseline, optionally clears recipes, and retains completed run records.
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/website-assessments` | Submit `{url}`; returns an assessment ID and status URL |
+| `GET /api/website-assessments/{id}` | Read evidence, activity, analysis, and errors |
+| `GET /api/website-assessments/examples` | Read sample metadata; no stored assessment result |
+| `GET /api/repository-connections/status` | Check local GitHub authentication availability |
+| `POST /api/repository-connections` | Verify assessment/repository/profile identity and selected capabilities |
+| `POST /api/repository-repairs` | Submit `{connectionId}` for baseline and candidate verification |
+| `GET /api/repository-repairs/{id}` | Read exact diff, checks, provenance, and publication state |
+| `POST /api/repository-repairs/{id}/pull-request` | Publish the reviewed candidate with an `Idempotency-Key` |
 
-The explicit lab simulation is `/dashboard?mock=1#/fleet`; its scripted evidence is labeled simulated. It is a repair-lab walkthrough, never a fallback for real website assessment.
+Website states are `QUEUED → COLLECTING → ANALYZING → COMPLETED`, or `FAILED`. Connected repairs progress through fetch, baseline, planning, and staging to `READY_TO_PUBLISH`, then `PUBLISHING → PUBLISHED` after explicit publication. `NO_CHANGE`, `REJECTED`, and `FAILED` remain distinct outcomes. Website and repository list endpoints return only the issuing session's records. Lab routes retain `/api/sites`, `/api/prepare`, `/api/assessments`, `/api/approvals`, `/api/runs`, and `/api/resets`, with controller-shared run history.
 
-## API and records
+## Development and testing
 
-`GET /api/session` establishes an HttpOnly, SameSite=Strict operator cookie and returns `{csrfToken}`. Website reads require that session; every mutation also requires `X-CSRF-Token` and matching `Origin` or `Referer`. Sessions last eight hours and are invalidated on controller restart.
-
-The default website flow uses:
-
-- `GET /api/website-assessments/examples`: public sample metadata only.
-- `POST /api/website-assessments` with `{url}`: returns 202 `{assessmentId, statusUrl}`.
-- `GET /api/website-assessments/{assessmentId}`: current typed report, actual activity, partial observations, and final analysis/error.
-- `GET /api/website-assessments`: the issuing session's assessment records.
-
-Reports progress through `QUEUED`, `COLLECTING`, `ANALYZING`, and `COMPLETED` or `FAILED`. Records are persisted under `var/website-assessments/`. Website jobs share exclusive operation admission with the repair lab; conflicts return 409, and assessment start limits return 429. The [website specification](docs/specs/live-website-assessment.md) defines the contract and boundaries.
-
-The repair lab retains `/api/health`, `/api/sites`, `/api/prepare`, `/api/assessments`, `/api/approvals`, `/api/runs`, run events/reports, and `/api/resets`. Approval is bound to the issuing session and exact assessments. Run submission requires an `Idempotency-Key`; an exact retry returns the existing run, while a changed payload with that key returns 409. Caller-supplied approvals are never synthesized.
-
-Repair snapshots/checkpoints live at `var/runs/<runId>/run.json`, ordered append-only events at `events.ndjson`, recipes under `var/recipes/`, and operation metadata under `var/.patchpilot-control/`. A process lock prevents two controllers using the same data directory. Recovery failure retains the reservation until resolved. Reports expose recorded evidence rather than invented success values.
-
-## Verify
-
-Run deterministic tests without Docker or live provider requests:
+Dependencies are locked in `uv.lock`. The frontend uses native ES modules and system fonts; there is no Node dependency installation or asset compilation required to run it.
 
 ```bash
-uv run --locked --extra dev python -m pytest -p no:cacheprovider -m 'not docker and not live_model'
-```
+# Deterministic Python checks: no Docker, live model, or browser required
+uv run --locked --extra dev python -m pytest -p no:cacheprovider \
+  -m 'not docker and not live_model and not ui'
 
-Focused website/backend and frontend contract checks:
-
-```bash
-uv run --locked --extra dev python -m pytest -p no:cacheprovider tests/webscan tests/backend
+# Frontend contract checks with test doubles; no live target requests
 node src/patchpilot/static/scripts/verify-website.mjs
 node src/patchpilot/static/scripts/verify-api.mjs
-```
-
-The website frontend script uses a fetch test double and makes no network requests. It checks URL authorization boundaries, session/CSRF handling, sample fill-only behavior, partial failures, and unknown PHP. Test-double passes do not establish live target or provider acceptance.
-
-Repair-lab Docker acceptance and scripted playback remain separate:
-
-```bash
-DOCKER_CONTEXT=lima-patchpilot-demo uv run --locked --extra dev python -m pytest -p no:cacheprovider -m docker tests/runtime
+node src/patchpilot/static/scripts/verify-repository-repairs.mjs
 node src/patchpilot/static/scripts/verify-mock.mjs
+
+# Real Docker verification; select DOCKER_CONTEXT if required
+uv run --locked --extra dev python -m pytest -p no:cacheprovider \
+  -m docker tests/repairs/test_sandbox_docker.py tests/runtime
+
+# Package and whitespace checks
 uv build
+git diff --check
 ```
 
-The Docker suite exercises actual 3 MiB upload verification, isolated staging, activation, restoration, and project-scoped reset. The opt-in local repair/provider check is documented in [the core guide](src/patchpilot/core/README.md). The [interface guide](docs/design/interface.md) and [frontend guide](src/patchpilot/static/README.md) describe browser checks and optional Playwright/axe setup. Record current live website validation separately, including URL, timestamps, response fingerprints, and actual provider provenance.
+Pytest uses `test_*.py` files and `test_*` functions; opt-in markers are `docker`, `live_model`, and `ui`. No repository-wide coverage threshold or formatter/linter gate is configured. Browser verification with Playwright/axe is documented in the [frontend guide](src/patchpilot/static/README.md). Keep deterministic tests, real Docker checks, browser checks, and live provider acceptance clearly distinguished.
 
-`pyproject.toml` and `uv.lock` define reproducible dependencies. No repository-wide formatter or linter policy is currently enforced; `git diff --check` checks whitespace.
+Use four-space Python indentation, type hints, `snake_case` functions/modules, and `PascalCase` classes; preserve camelCase wire contracts. Work on a focused branch from current `main`, use descriptive commits such as `fix: preserve upload limits`, and include behavior, relevant specification links, verification results, and screenshots for UI changes in PRs. Keep `.env`, tokens, runtime records, and generated artifacts out of commits. Never weaken a verifier to make a candidate pass.
+
+## Technical roadmap
+
+These are planned extensions, not current product claims.
+
+| Stage | Work | Acceptance goal |
+| --- | --- | --- |
+| Broaden supported PHP sites | Explicit framework/configuration profiles and app-specific business checks | A second real application completes the same reproducible baseline/candidate/PR workflow |
+| Support hosted teams | GitHub App/OAuth, accounts, durable report ownership, isolated queued workers | Multiple owners can use separate credentials and recover their authorized history |
+| Close the deployment loop | Owner-approved deployment integration, production checks, and rollback policy | A merged change is verified on the actual deployed website with an auditable outcome |
+| Expand repair coverage | Carefully scoped source/dependency repairs, stronger regression suites, and recurring assessments | Every new repair class has fixed checks, reviewed boundaries, and real acceptance evidence |
+
+## Further reading
+
+- [Live website assessment contract](docs/specs/live-website-assessment.md): collection, findings, provider behavior, and API boundaries.
+- [Verified GitHub repair contract](docs/specs/verified-github-repairs.md): identity, configuration policy, sandbox, and publication guarantees.
+- [Connected demo and acceptance](docs/demo/connected-repair.md): reproduce the real URL-to-PR workflow.
+- [Demo website options](docs/demo/demo-sites.md): which examples support assessment or connected repair.
+- [Interface design](docs/design/interface.md) and [focused workspace](docs/design/intuitive-workspace.md): interaction, accessibility, and disclosure behavior.
+- [Original team plan](tasks/team-plan.md): hackathon ownership and historical task breakdown; current capabilities are described above and in the implemented contracts.

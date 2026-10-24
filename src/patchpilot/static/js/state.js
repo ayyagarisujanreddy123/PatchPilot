@@ -10,6 +10,7 @@ const initialUi = {
     websiteLoading: true,
     websiteError: null,
     websiteConnectionError: null,
+    repositoryDrafts: {},
     siteUrl: "",
     siteFilter: "all",
     selectedSiteId: null,
@@ -53,6 +54,8 @@ let state = {
     websiteHistory: [],
     websiteExamples: [],
     websiteReports: {},
+    repositoryRepairs: {},
+    repositoryGitHubStatus: null,
 };
 
 const listeners = new Set();
@@ -148,6 +151,8 @@ export function resetStoreForMock() {
         websiteHistory: [],
         websiteExamples: [],
         websiteReports: {},
+        repositoryRepairs: {},
+        repositoryGitHubStatus: null,
     };
     notify();
 }

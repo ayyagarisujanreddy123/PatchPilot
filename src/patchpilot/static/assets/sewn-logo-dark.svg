@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 132" role="img" aria-labelledby="title">
+  <title id="title">sewn</title>
+  <defs>
+    <mask id="check"><rect width="64" height="64" fill="white"/><path d="m19 31 10 9 18-20" fill="none" stroke="black" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></mask>
+  </defs>
+  <g transform="translate(3 17) scale(1.5)">
+    <path d="M30 4a5 5 0 0 1 4 0l18 9a6 6 0 0 1 4 6v12c0 13-9 23-24 30C17 54 8 44 8 31V19a6 6 0 0 1 4-6z" fill="#008b95" mask="url(#check)"/>
+    <rect x="43" y="9" width="17" height="15" rx="4" fill="#c9f044" transform="rotate(22 51.5 16.5)"/>
+  </g>
+  <text x="112" y="97" fill="#f0f6fc" font-family="Arial, Helvetica, sans-serif" font-size="100" font-weight="700" letter-spacing="-7">sewn</text>
+</svg>

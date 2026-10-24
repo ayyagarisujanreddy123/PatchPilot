@@ -12,8 +12,8 @@ export function renderHeader(root, { advisory, busy, mockMode, health, route, we
     const simulation = mockMode || health?.mode === "SIMULATION";
     const location = website ? "Website assessment" : route === "events" ? "Lab activity" : route === "metrics" ? "Demo insights" : route === "recipes" ? "Recipe memory" : "Repair lab";
     root.append(el("div", { className: "header__brand" }, [
-        el("a", { className: "wordmark", attrs: { href: "/", id: "header-home", "aria-label": "PatchPilot home" } }, [
-            el("img", { attrs: { src: "/static/favicon.svg", alt: "", width: "30", height: "30" } }), "PatchPilot"]),
+        el("a", { className: "wordmark wordmark--sewn", attrs: { href: "/", id: "header-home", "aria-label": "sewn home" } }, [
+            el("img", { attrs: { src: "/static/assets/sewn-logo.png", alt: "", width: "2126", height: "740" } })]),
     ]), el("div", { className: "header__toolbar" }, [
         el("div", { className: "header__location" }, [el("span", {}, "Workspace"), el("strong", {}, location)]),
         el("div", { className: "header__meta" }, [

@@ -118,6 +118,14 @@ async function newPage(options = {}) {
             return route.fulfill({ status: intercepted.status ?? 200, contentType: "application/json",
                 body: JSON.stringify(intercepted.json) });
         }
+        // Completed synthetic assessments may reveal the optional owner next step.
+        // Keep its initial reads local to this harness, including selection-race tests.
+        if (request.method() === "GET" && ["/api/repository-connections/status", "/api/repository-connections", "/api/repository-repairs"].includes(target.pathname)) {
+            const json = target.pathname.endsWith("/status")
+                ? { available: false, login: null, message: "GitHub is not connected in this browser test." }
+                : { items: [], nextCursor: null };
+            return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(json) });
+        }
         if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) {
             blockedWrites.push({ path: target.pathname, method: request.method() });
             return route.abort("blockedbyclient");

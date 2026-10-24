@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "siteId": "patchpilot-community-demo-v1",
+  "documentRoot": "public",
+  "phpIni": "config/php.ini",
+  "capabilities": ["homepage", "contact", "upload"],
+  "homepage": "/",
+  "contact": "/contact.php",
+  "upload": "/upload.php"
+}

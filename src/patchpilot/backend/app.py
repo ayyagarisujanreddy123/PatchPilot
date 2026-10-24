@@ -19,6 +19,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from patchpilot.backend.api import get_api_router
 from patchpilot.backend.control import OperationControl, complete_before_cancel
 from patchpilot.backend.reconciliation import TERMINAL_STATES, reconcile_interrupted_runs
+from patchpilot.backend.repository_api import get_repository_router
+from patchpilot.backend.repository_jobs import RepositoryJobManager, RepositoryService
 from patchpilot.backend.storage import FileEventSink, FileRecipeStore, FileRunStore
 from patchpilot.backend.website_api import get_website_router
 from patchpilot.backend.website_jobs import WebsiteAgent, WebsiteJobManager
@@ -95,6 +97,7 @@ async def lifespan(app: FastAPI):
     await control.open()
     try:
         await app.state.website_jobs.open()
+        await app.state.repository_jobs.open()
         if app.state.repair_service is None:
             from patchpilot.core.service import RealRepairService
             app.state.repair_service = RealRepairService(app.state.run_store, app.state.event_sink, app.state.recipe_store)
@@ -127,6 +130,7 @@ async def lifespan(app: FastAPI):
             # Offloaded Docker/model work cannot be stopped by cancelling its await.
             # Drain the current bounded operation before closing its dependencies.
             app.state.website_jobs.closing = True
+            app.state.repository_jobs.closing = True
             await app.state.worker_queue.put(None)
             try:
                 await complete_before_cancel(task)
@@ -134,9 +138,12 @@ async def lifespan(app: FastAPI):
                 try:
                     await complete_before_cancel(app.state.website_jobs.shutdown())
                 finally:
-                    result = service.close()
-                    if inspect.isawaitable(result):
-                        await result
+                    try:
+                        await complete_before_cancel(app.state.repository_jobs.shutdown())
+                    finally:
+                        result = service.close()
+                        if inspect.isawaitable(result):
+                            await result
     finally:
         control.close()
 
@@ -147,8 +154,9 @@ def create_app(
     custom_recipe_store: FileRecipeStore | None = None,
     custom_repair_service: RepairService | None = None,
     custom_website_agent: WebsiteAgent | None = None,
+    custom_repository_service: RepositoryService | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="PatchPilot", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="sewn", version="0.1.0", lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
     app.state.run_store = custom_run_store or FileRunStore(RUNS_DIR)
     app.state.event_sink = custom_event_sink or FileEventSink(app.state.run_store.runs_dir)
@@ -166,6 +174,17 @@ def create_app(
         app.state.run_store.runs_dir.parent / "website-assessments",
         app.state.control, website_agent_factory,
     )
+    def repository_service_factory() -> RepositoryService:
+        if custom_repository_service is not None:
+            return custom_repository_service
+        from patchpilot.repairs.service import RepositoryRepairService
+        return RepositoryRepairService(root=BASE_DIR)
+
+    app.state.repository_jobs = RepositoryJobManager(
+        app.state.run_store.runs_dir.parent / "repository-repairs",
+        app.state.control, repository_service_factory,
+    )
+    app.include_router(get_repository_router())
     app.include_router(get_website_router())
     app.include_router(get_api_router(app.state.run_store, app.state.event_sink, app.state.recipe_store))
 

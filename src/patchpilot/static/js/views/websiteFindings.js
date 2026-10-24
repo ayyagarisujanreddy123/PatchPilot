@@ -67,7 +67,7 @@ export function renderWebsiteAnalysis(report) {
         return report.state === "FAILED" ? el("p", { className: "website-scope-note" }, "AI recommendations aren't available for this assessment. Review any collected findings or try again.") : null;
     }
     const root = el("section", { className: "website-section website-recommendations", attrs: { "aria-labelledby": "website-analysis-heading" } }, [
-        el("div", { className: "section-heading" }, [el("h2", { id: "website-analysis-heading" }, "What to fix first"), el("span", { className: "website-ai-label" }, [icon("code"), "Analyzed by Anthropic"])]),
+        el("div", { className: "section-heading" }, [el("h2", { id: "website-analysis-heading" }, "What to fix first"), el("span", { className: "website-ai-label" }, [icon("code"), "Analyzed by Victor · Powered by Anthropic"])]),
     ]);
     if (analysis.summary.length > 240) {
         const first = analysis.summary.match(/^.{1,220}?(?:[.!?](?:\s|$)|$)/)?.[0]?.trim();
