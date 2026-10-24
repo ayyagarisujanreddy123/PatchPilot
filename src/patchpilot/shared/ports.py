@@ -11,6 +11,7 @@ from patchpilot.shared.contracts import (
     Approval,
     CandidateSpec,
     CheckResult,
+    DeploymentSnapshot,
     Recipe,
     RepairPlan,
     RunEvent,
@@ -91,7 +92,7 @@ class EventSink(Protocol):
 class Runtime(Protocol):
     """Container deployment and lifecycle operations (implemented by Nicholas)."""
 
-    async def inspect(self, site: SiteManifest) -> dict[str, Any]:
+    async def inspect(self, site: SiteManifest) -> DeploymentSnapshot:
         """Capture original deployment identity and settings."""
         ...
 
@@ -102,14 +103,14 @@ class Runtime(Protocol):
         ...
 
     async def activate(
-        self, site: SiteManifest, candidate: CandidateSpec, original: dict[str, Any]
-    ) -> dict[str, Any]:
+        self, site: SiteManifest, candidate: CandidateSpec, original: DeploymentSnapshot
+    ) -> DeploymentSnapshot:
         """Activate the verified candidate at the original site address."""
         ...
 
     async def restore(
-        self, site: SiteManifest, original: dict[str, Any]
-    ) -> dict[str, Any]:
+        self, site: SiteManifest, original: DeploymentSnapshot
+    ) -> DeploymentSnapshot:
         """Restore the retained original deployment."""
         ...
 

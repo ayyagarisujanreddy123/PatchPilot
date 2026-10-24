@@ -139,6 +139,17 @@ class CandidateSpec(ContractModel):
     resource_handle: Optional[str] = None
 
 
+class DeploymentSnapshot(ContractModel):
+    site_id: str
+    deployment_id: str
+    endpoint: str
+    php_version: Optional[str] = None
+    sapi: Optional[str] = None
+    upload_progress: Optional[str] = None
+    container_id: Optional[str] = None
+    labels: Optional[dict[str, str]] = None
+
+
 class Recipe(ContractModel):
     recipe_id: str
     compatibility_key: str

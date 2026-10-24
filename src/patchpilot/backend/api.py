@@ -410,6 +410,7 @@ def get_api_router(
     @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
     async def create_run(
         payload: CreateRunRequest,
+        request: Request,
         idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     ):
         # TODO(platform): Enforce distributed Idempotency-Key locking
@@ -442,7 +443,19 @@ def get_api_router(
 
         # Enqueue background repair task to lifespan worker
         target_outcome = payload.target_outcome or "success"
-        await worker_queue.put((run_id, approval.approval_id, payload.memory_enabled, target_outcome))
+        queue: Optional[asyncio.Queue] = getattr(request.app.state, "worker_queue", None)
+        if queue is not None:
+            await queue.put((run_id, approval.approval_id, payload.memory_enabled, target_outcome))
+        else:
+            # Fallback if running outside full lifespan
+            asyncio.create_task(
+                repair_service.run(
+                    approval=approval,
+                    memory_enabled=payload.memory_enabled,
+                    target_outcome=target_outcome,
+                    run_id=run_id,
+                )
+            )
 
         return {
             "runId": run_id,

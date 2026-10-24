@@ -41,20 +41,27 @@ repair_service = FakeRepairService(
 )
 
 
-async def background_repair_worker(service: FakeRepairService):
+async def background_repair_worker(
+    queue: asyncio.Queue[tuple[str, str, bool, str]], service: FakeRepairService
+):
     """Lifespan-owned background worker consuming runs sequentially from worker_queue."""
     logger.info("Background repair worker started")
     try:
         while True:
-            run_id, approval_id, memory_enabled, target_outcome = await worker_queue.get()
+            run_id, approval_id, memory_enabled, target_outcome = await queue.get()
             approval = _APPROVALS.get(approval_id)
             if not approval:
                 logger.error("Approval %s not found for run %s", approval_id, run_id)
-                worker_queue.task_done()
+                queue.task_done()
                 continue
 
             try:
-                logger.info("Executing run %s for approval %s (target_outcome=%s)", run_id, approval_id, target_outcome)
+                logger.info(
+                    "Executing run %s for approval %s (target_outcome=%s)",
+                    run_id,
+                    approval_id,
+                    target_outcome,
+                )
                 await service.run(
                     approval=approval,
                     memory_enabled=memory_enabled,
@@ -64,7 +71,7 @@ async def background_repair_worker(service: FakeRepairService):
             except Exception as e:
                 logger.exception("Error executing run %s: %s", run_id, e)
             finally:
-                worker_queue.task_done()
+                queue.task_done()
     except asyncio.CancelledError:
         logger.info("Background repair worker cancelled on shutdown")
 
@@ -72,10 +79,15 @@ async def background_repair_worker(service: FakeRepairService):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 1. Startup: Run reconciliation stub
-    await reconcile_interrupted_runs(run_store=run_store, repair_service=repair_service)
+    app_run_store = getattr(app.state, "run_store", run_store)
+    app_repair_service = getattr(app.state, "repair_service", repair_service)
 
-    # 2. Start single background worker
-    worker_task = asyncio.create_task(background_repair_worker(repair_service))
+    await reconcile_interrupted_runs(run_store=app_run_store, repair_service=app_repair_service)
+
+    # 2. Start single background worker with loop-scoped queue
+    queue: asyncio.Queue[tuple[str, str, bool, str]] = asyncio.Queue()
+    app.state.worker_queue = queue
+    worker_task = asyncio.create_task(background_repair_worker(queue, app_repair_service))
     app.state.worker_task = worker_task
 
     yield
@@ -88,7 +100,12 @@ async def lifespan(app: FastAPI):
         pass
 
 
-def create_app() -> FastAPI:
+def create_app(
+    custom_run_store: Optional[FileRunStore] = None,
+    custom_event_sink: Optional[FileEventSink] = None,
+    custom_recipe_store: Optional[FileRecipeStore] = None,
+    custom_repair_service: Optional[FakeRepairService] = None,
+) -> FastAPI:
     app = FastAPI(
         title="PatchPilot API",
         version="0.1.0",
@@ -96,8 +113,20 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    actual_run_store = custom_run_store or run_store
+    actual_event_sink = custom_event_sink or event_sink
+    actual_recipe_store = custom_recipe_store or recipe_store
+    actual_repair_service = custom_repair_service or repair_service
+
+    app.state.run_store = actual_run_store
+    app.state.event_sink = actual_event_sink
+    app.state.recipe_store = actual_recipe_store
+    app.state.repair_service = actual_repair_service
+
     # Attach router
-    router = get_api_router(run_store, event_sink, recipe_store, repair_service)
+    router = get_api_router(
+        actual_run_store, actual_event_sink, actual_recipe_store, actual_repair_service
+    )
     app.include_router(router)
 
     # Standard error handlers matching {error: {code, message, details}}
