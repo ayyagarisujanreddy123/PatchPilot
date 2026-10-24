@@ -88,6 +88,7 @@ function anySiteActive(sites) {
         "revising",
         "activating",
         "rechecking",
+        "finalizing",
     ]);
     return sites.some((s) => active.has(s.status));
 }
@@ -192,7 +193,7 @@ async function onApprove(siteId) {
         } else {
             patchUi({ approvalSiteId: null, approvalPlan: null });
             restoreApprovalFocus();
-            if (result?.runId) { navigate("run", siteId); }
+            if (result?.runId || isMockMode()) { navigate("run", siteId); }
         }
     } catch (err) {
         patchUi({ approvalError: err?.message ?? "Approval failed" });
@@ -204,6 +205,13 @@ async function onApprove(siteId) {
 const fleetHandlers = {
     openApproval,
     startRepairAll,
+    onRefreshState: () => refreshState(),
+    onViewActivity: () => navigate("events"),
+    onSiteFilter: (siteFilter) => patchUi({ siteFilter }),
+    onSelectSite: (siteUrl) => {
+        patchUi({ siteUrl, urlError: null });
+        document.getElementById("registered-site-url")?.focus();
+    },
     viewRun: (siteId) => navigate("run", siteId),
     onPrepare: async () => {
         if (getState().busy || getState().ui.preparing) { return; }
@@ -220,7 +228,10 @@ const fleetHandlers = {
             const siteId = matchRegisteredUrl(value, getState().sites);
             patchUi({ urlError: null });
             openApproval(siteId);
-        } catch (err) { patchUi({ urlError: err.message }); }
+        } catch (err) {
+            patchUi({ urlError: err.message });
+            document.getElementById("registered-site-url")?.focus();
+        }
     },
     onUrlChange: (value) => patchUi({ siteUrl: value, urlError: null }),
 };
@@ -263,7 +274,7 @@ async function handleResetFleet(clearMemory) {
         await postReset({ clear_memory: Boolean(clearMemory) });
         closeApproval();
         patchState({ runs: {} });
-        patchUi({ lastErrorMessage: null });
+        patchUi({ lastErrorMessage: null, clearRecipes: false });
         await refreshState();
         await reloadAllEvents();
     } catch (err) {
@@ -274,6 +285,7 @@ async function handleResetFleet(clearMemory) {
 }
 
 const demoHandlers = {
+    onClearMemoryChange: (clearRecipes) => patchUi({ clearRecipes }),
     onResetFleet: (clearMemory) => {
         handleResetFleet(clearMemory);
     },
@@ -405,6 +417,8 @@ function renderApp(snapshot) {
     const inputValue = focusedId === "registered-site-url" ? focused.value : null;
     const selection = inputValue != null ? [focused.selectionStart, focused.selectionEnd] : null;
     const disclosureState = [...document.querySelectorAll("details[id]")].map((detail) => [detail.id, detail.open]);
+    const scrollState = [...document.querySelectorAll(".table-scroll[id], .drawer__body[id], #event-log-scroll-region")]
+        .map((region) => [region.id, region.scrollLeft, region.scrollTop]);
     const headerEl = document.getElementById("app-header");
     const navEl = document.getElementById("app-nav");
     const bannerEl = document.getElementById("backend-banner");
@@ -421,6 +435,7 @@ function renderApp(snapshot) {
     renderNav(navEl, {
         route: snapshot.ui.route === "run" ? "fleet" : snapshot.ui.route,
         onNavigate: (r) => navigate(r),
+        health: snapshot.health,
     });
     renderBackendBanner(bannerEl, {
         visible: snapshot.ui.backendUnreachable || Boolean(snapshot.ui.lastErrorMessage),
@@ -437,20 +452,28 @@ function renderApp(snapshot) {
 
     mainEl.setAttribute("aria-busy", snapshot.busy || snapshot.ui.preparing || snapshot.ui.resetting ? "true" : "false");
     renderMainPanel(mainEl, snapshot);
-    if (snapshot.ui.route === "events") {
-        afterRenderEvents(snapshot);
-    }
 
     if (approvalEl) {
         renderApproval(approvalEl, snapshot, approvalHandlers);
     }
     syncApprovalEscape(snapshot);
 
-    if (liveEl && snapshot.busy !== liveEl.dataset.lastBusy) {
+    const modalOpen = Boolean(snapshot.ui.approvalSiteId);
+    for (const background of [headerEl, navEl, mainEl, document.querySelector(".aside"), bannerEl]) {
+        if (background) { background.inert = modalOpen; }
+    }
+    document.body.classList.toggle("has-modal", modalOpen);
+    const operation = snapshot.ui.loading ? "loading" : snapshot.ui.preparing ? "preparing" : snapshot.ui.resetting ? "resetting" : snapshot.busy ? "repairing"
+        : !snapshot.health?.ready || !snapshot.health?.prepared ? "setup" : "ready";
+    if (liveEl && operation !== liveEl.dataset.lastOperation) {
+        liveEl.dataset.lastOperation = operation;
         liveEl.dataset.lastBusy = String(snapshot.busy);
-        liveEl.textContent = snapshot.busy
-            ? "PatchPilot is busy with a repair or reset."
-            : "PatchPilot is ready.";
+        liveEl.textContent = operation === "ready" ? "Workspace ready."
+            : operation === "loading" ? "Checking workspace readiness."
+                : operation === "setup" ? "Workspace setup required before assessment."
+            : operation === "preparing" ? "Preparing the registered demo sites."
+                : operation === "resetting" ? "Restoring the demo baseline."
+                    : "Repair in progress. Follow the recorded checks.";
     }
 
     const demoRoot = document.getElementById("demo-controls-root");
@@ -460,6 +483,10 @@ function renderApp(snapshot) {
     for (const [id, open] of disclosureState) {
         const replacement = document.getElementById(id);
         if (replacement?.tagName === "DETAILS") { replacement.open = open; }
+    }
+    for (const [id, left, top] of scrollState) {
+        const region = document.getElementById(id);
+        if (region) { region.scrollLeft = left; region.scrollTop = top; }
     }
     if (focusedId) {
         const replacement = document.getElementById(focusedId);
@@ -471,12 +498,15 @@ function renderApp(snapshot) {
             }
         }
     }
+    if (snapshot.ui.route === "events") { afterRenderEvents(snapshot); }
 }
 
 function bindGlobalHandlers() {
     window.addEventListener("hashchange", () => {
         const { route, selectedSiteId } = parseRoute();
         patchUi({ route, selectedSiteId, runError: null });
+        document.title = `${route === "run" ? "Repair report" : route === "events" ? "Activity" : "Dashboard"} · PatchPilot`;
+        document.getElementById("app-main")?.focus({ preventScroll: true });
         if (route === "run" && selectedSiteId) {
             refreshRunIfNeeded();
         }
@@ -517,10 +547,12 @@ async function boot() {
     try {
         initApiFromUrl();
         const { route, selectedSiteId } = parseRoute();
-        patchUi({ route, selectedSiteId, mockMode: isMockMode() });
+        const requestedUrl = new URLSearchParams(window.location.search).get("url")?.slice(0, 2048) ?? "";
+        patchUi({ route, selectedSiteId, mockMode: isMockMode(), siteUrl: requestedUrl });
 
         subscribe(renderApp);
         bindGlobalHandlers();
+        renderApp(getState());
 
         await refreshState();
         await refreshEvents();

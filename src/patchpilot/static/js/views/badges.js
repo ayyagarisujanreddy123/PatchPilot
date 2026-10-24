@@ -5,6 +5,7 @@
 import { el } from "../util.js";
 
 const STATUS_MAP = {
+    finalizing: { label: "Saving verification evidence", icon: "◐", tone: "progress" },
     unassessed: { label: "Ready for assessment", icon: "○", tone: "neutral" },
     queued: { label: "Queued", icon: "◐", tone: "progress" },
     planning: { label: "Choosing plan", icon: "◐", tone: "progress" },

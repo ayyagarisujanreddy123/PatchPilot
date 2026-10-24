@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Assess a registered PHP site, approve the repair, and keep the evidence. PatchPilot verifies the candidate and repeats checks at the original local address.">
+    <meta name="theme-color" content="#ffffff">
+    <title>PatchPilot — A safer update. A site that still works.</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/design.css">
+    <link rel="stylesheet" href="/static/landing.css">
+    <script type="module" src="/static/js/landing.js"></script>
+</head>
+<body class="landing" data-page="landing">
+    <a class="lp-skip" href="#content">Skip to content</a>
+    <header class="lp-header">
+        <nav class="lp-nav" aria-label="Main navigation">
+            <a class="wordmark" href="/" aria-label="PatchPilot home"><img src="/static/favicon.svg" width="30" height="30" alt=""><span>PatchPilot</span></a>
+            <div class="lp-nav-links"><a href="#workflow">How it works</a><a href="#verification">Verification</a><a href="#faq">Questions</a></div>
+            <a class="btn btn--primary lp-nav-cta" href="/dashboard">Open dashboard <span aria-hidden="true">↗</span></a>
+        </nav>
+    </header>
+    <main id="content" tabindex="-1">
+        <section class="lp-hero lp-container" aria-labelledby="hero-title">
+            <p class="eyebrow">POLICY-GUIDED PHP REPAIR</p>
+            <h1 id="hero-title">A safer update.<br>A site that still works.</h1>
+            <p class="lp-hero-copy">Assess your registered PHP site. Approve the change.<br class="lp-wide-break"> Let the checks decide when the repair is ready.</p>
+            <div class="lp-actions"><a class="btn btn--primary" href="/dashboard">Open dashboard <span aria-hidden="true">→</span></a><a class="btn btn--secondary" href="/dashboard?mock=1#/fleet">Explore simulated walkthrough</a></div>
+            <p class="lp-hero-note">Registered local fixtures <span aria-hidden="true">·</span> Owner approval <span aria-hidden="true">·</span> Recorded HTTP evidence</p>
+        </section>
+
+        <section class="lp-product lp-container" aria-labelledby="preview-title">
+            <div class="lp-preview-caption"><span id="preview-title">Illustrative product preview</span><span>A proposed repair, before approval</span></div>
+            <div class="lp-window" role="img" aria-label="Illustrative dashboard: a local PHP fixture, a proposed update from PHP 8.3.35 to 8.3.36, and seven required verification checks. This is not a live result.">
+                <div class="lp-window-bar"><div class="lp-window-brand"><img src="/static/favicon.svg" width="22" height="22" alt="">PatchPilot <span class="lp-divider">/</span><span>Local fleet</span></div><span class="lp-example-label">Example · not a live result</span></div>
+                <div class="lp-preview-layout">
+                    <aside class="lp-preview-sidebar" aria-hidden="true"><span class="lp-sidebar-title">WORKSPACE</span><div class="lp-sidebar-item lp-sidebar-item--active"><span>▦</span> Overview</div><div class="lp-sidebar-item"><span>◷</span> Run history</div><div class="lp-sidebar-item"><span>≡</span> Evidence</div><div class="lp-sidebar-bottom"><span class="lp-local-dot"></span> Registered local fixture</div></aside>
+                    <div class="lp-preview-main">
+                        <div class="lp-preview-heading"><div><span class="lp-small-label">PANTRY-A · LOCAL PHP FIXTURE</span><h2>Review the repair plan</h2></div><span class="lp-neutral-pill">Awaiting owner approval</span></div>
+                        <div class="lp-runtime-change"><div><span>Observed runtime</span><strong>PHP 8.3.35</strong><small>Apache · HTTP-serving runtime</small></div><span class="lp-change-arrow" aria-hidden="true">→</span><div><span>Proposed fixed release</span><strong>PHP 8.3.36</strong><small>Approved image and configuration</small></div></div>
+                        <div class="lp-mitigation"><span class="lp-preview-icon" aria-hidden="true">◇</span><div><strong>Keep the security setting explicit</strong><code>session.upload_progress.enabled = 0</code></div><span class="lp-small-label">REQUIRED</span></div>
+                        <div class="lp-checks-heading"><h3>Verify what matters</h3><span>7 required checks in this example</span></div>
+                        <div class="lp-check-grid"><span><i></i> PHP version</span><span><i></i> Serving mode</span><span><i></i> Upload-session mitigation</span><span><i></i> Deployment identity</span><span><i></i> Homepage content</span><span><i></i> Valid contact submission</span><span><i></i> Invalid contact rejection</span></div>
+                        <div class="lp-preview-footer"><span>Candidate first. Original address next.</span><span class="lp-illustrative-button">Review → approve → verify</span></div>
+                    </div>
+                </div>
+            </div>
+            <p class="lp-preview-footnote">Illustration only. The dashboard displays actual observations, approval scope, and run evidence.</p>
+        </section>
+
+        <section class="lp-workflow lp-section lp-container" id="workflow" aria-labelledby="workflow-title">
+            <div class="lp-section-intro"><p class="eyebrow">A CLEAR PATH TO REPAIR</p><h2 id="workflow-title">You approve the change.<br>The evidence earns the result.</h2><p>One deliberate workflow, from the first observation to the final check.</p></div>
+            <ol class="lp-steps">
+                <li><span class="lp-step-number">01</span><h3>Understand the finding</h3><p>Inspect the registered site's serving runtime against the configured PHP security policy. See the proposed changes and required checks.</p></li>
+                <li><span class="lp-step-number">02</span><h3>Approve an exact scope</h3><p>Review one site or the eligible fleet. Your approval is bound to those assessments and that policy revision.</p></li>
+                <li><span class="lp-step-number">03</span><h3>Repair, then prove it</h3><p>Test the candidate, activate the tested content, and repeat verification at the original address. Keep the complete record.</p></li>
+            </ol>
+        </section>
+
+        <section class="lp-feature-band" id="verification" aria-labelledby="verification-title">
+            <div class="lp-feature lp-container">
+                <div class="lp-feature-copy"><p class="eyebrow">VERIFY BEFORE ACTIVATION</p><h2 id="verification-title">Test the change.<br>Protect the work.</h2><p>A newer runtime is only part of a working repair. PatchPilot checks the website functions that the fixture requires, then repeats the checks after activation.</p><ul class="lp-feature-list"><li>Actual HTTP-serving PHP version and settings</li><li>Homepage and valid/invalid contact behavior</li><li>Real 3 MiB upload checks on upload fixtures</li></ul><a class="lp-text-link" href="/dashboard">Inspect your local fleet <span aria-hidden="true">→</span></a></div>
+                <div class="lp-verification-diagram" aria-label="Verification workflow: inspect the original, test a separate candidate, then repeat checks after activation.">
+                    <div class="lp-diagram-title"><span class="lp-small-label">THE VERIFICATION CONTRACT</span><span class="lp-neutral-pill">Same required checks</span></div>
+                    <div class="lp-diagram-step"><span class="lp-diagram-symbol">1</span><div><strong>Inspect the original</strong><p>Record identity, runtime, and baseline behavior.</p></div></div><div class="lp-diagram-line" aria-hidden="true"></div>
+                    <div class="lp-diagram-step lp-diagram-step--blue"><span class="lp-diagram-symbol">2</span><div><strong>Test a separate candidate</strong><p>The original keeps serving during staging.</p></div></div><div class="lp-diagram-line" aria-hidden="true"></div>
+                    <div class="lp-diagram-step"><span class="lp-diagram-symbol">3</span><div><strong>Activate and check again</strong><p>Verify the tested deployment at the original address.</p></div></div>
+                    <p class="lp-diagram-note">A failed candidate is rejected. A failed activation follows the recorded recovery authority.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="lp-feature lp-section lp-container" aria-labelledby="evidence-title">
+            <div class="lp-evidence-preview"><div class="lp-evidence-top"><span class="lp-small-label">A READABLE REPAIR RECORD</span><span class="lp-preview-icon" aria-hidden="true">≡</span></div><h3>One result. A clear next step.</h3><p>Possible terminal outcomes</p><div class="lp-outcome lp-outcome--verified"><span aria-hidden="true">✓</span><div><strong>Patched &amp; verified</strong><small>Live checks support the repair result.</small></div></div><div class="lp-outcome"><span aria-hidden="true">×</span><div><strong>Candidate rejected</strong><small>Review the failed staging evidence.</small></div></div><div class="lp-outcome"><span aria-hidden="true">↶</span><div><strong>Restored · still unpatched</strong><small>The original is restored; the issue remains.</small></div></div><span class="lp-example-label">Illustrative outcome guide</span></div>
+            <div class="lp-feature-copy"><p class="eyebrow">KEEP THE REASON AND THE RECEIPTS</p><h2 id="evidence-title">A useful answer.<br>With the proof attached.</h2><p>Start with the final outcome and the latest checks. Open the technical evidence when you need the exact expected and observed values.</p><p>Earlier failures stay in the record. Plan provenance distinguishes a fresh model plan from verified recipe reuse. Restoration is reported as unpatched.</p><a class="lp-text-link" href="/dashboard?mock=1#/fleet">Explore the simulated walkthrough <span aria-hidden="true">→</span></a></div>
+        </section>
+
+        <section class="lp-faq-band" id="faq" aria-labelledby="faq-title">
+            <div class="lp-faq lp-container"><div class="lp-faq-intro"><p class="eyebrow">SCOPE, WITHOUT GUESSWORK</p><h2 id="faq-title">A focused prototype.<br>A clear boundary.</h2><p>Built around authorized, registered local Apache/PHP fixtures, with an owner in control of the repair.</p></div><div class="lp-faq-list">
+                <details><summary>Which websites can I assess?</summary><p>Use a configured local URL from the dashboard's registered fleet. Other hosting environments require an authorized deployment connection and registration before assessment or repair.</p></details>
+                <details><summary>What am I approving?</summary><p>The specific assessments, proposed changes, required verification, and policy revision shown in the review. The backend binds that approval to the registered site scope.</p></details>
+                <details><summary>How is a successful repair verified?</summary><p>HTTP checks run on the staged candidate and again at the original address after activation. Reports retain observed runtime, functional checks, deployment identity, and recovery evidence.</p></details>
+                <details><summary>What does the simulated walkthrough do?</summary><p>It plays a clearly labeled example of assessment, repair progress, recipe reuse, and recovery. The simulated walkthrough does not operate the real local fixtures or provide real verification evidence.</p></details>
+            </div></div>
+        </section>
+
+        <section class="lp-final-cta lp-container" aria-labelledby="cta-title"><p class="eyebrow">YOUR NEXT REPAIR, WITH A RECORD</p><h2 id="cta-title">Make the change.<br>Keep the proof.</h2><p>Start with the registered fleet. Review the finding before approving a repair.</p><div class="lp-actions"><a class="btn btn--primary" href="/dashboard">Open dashboard <span aria-hidden="true">→</span></a><a class="btn btn--secondary" href="/dashboard?mock=1#/fleet">Explore simulated walkthrough</a></div></section>
+    </main>
+    <footer class="lp-footer"><div class="lp-container lp-footer-inner"><a class="wordmark" href="/" aria-label="PatchPilot home"><img src="/static/favicon.svg" width="26" height="26" alt=""><span>PatchPilot</span></a><span>Local repair. Explicit approval. Recorded evidence.</span><a href="/dashboard">Open dashboard <span aria-hidden="true">↗</span></a></div></footer>
+</body>
+</html>

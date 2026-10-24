@@ -11,7 +11,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -191,9 +191,18 @@ def create_app(
 
     @app.get("/", include_in_schema=False)
     async def index():
+        return FileResponse(static_dir / "landing.html", headers={"Cache-Control": "no-store"})
+
+    @app.get("/dashboard", include_in_schema=False)
+    async def dashboard():
         return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-store"})
 
-    # Existing index.html uses relative styles.css and js/main.js URLs.
+    @app.get("/dashboard/", include_in_schema=False)
+    async def dashboard_canonical(request: Request):
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"/dashboard{query}", status_code=307)
+
+    # Keep the explicit asset namespace and existing root asset URLs available.
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.mount("/", StaticFiles(directory=static_dir), name="dashboard-assets")
     return app

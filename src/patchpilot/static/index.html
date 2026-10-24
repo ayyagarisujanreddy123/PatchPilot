@@ -3,11 +3,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PatchPilot</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="stylesheet" href="styles.css">
+    <title>Dashboard · PatchPilot</title>
+    <meta name="description" content="Assess, approve, and verify repairs for your registered PHP sites.">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/design.css">
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
-<body>
+<body data-page="dashboard">
     <a class="skip-link" href="#app-main">Skip to main content</a>
 
     <div id="backend-banner" class="banner banner--error" hidden role="alert"></div>
@@ -15,9 +17,8 @@
     <header id="app-header" class="header" aria-label="PatchPilot header"></header>
 
     <div class="layout layout--app">
+        <div class="workspace-sidebar">
         <nav id="app-nav" class="nav" aria-label="Primary"></nav>
-
-        <main id="app-main" class="main" tabindex="-1" aria-live="polite"></main>
 
         <aside class="aside" aria-label="Demo controls">
             <button
@@ -27,18 +28,20 @@
                 aria-expanded="false"
                 aria-controls="demo-controls-panel"
             >
-                Demo controls
+                Workspace controls
             </button>
             <div id="demo-controls-panel" class="demo-controls__panel" hidden>
                 <div id="demo-controls-root"></div>
             </div>
         </aside>
+        </div>
+        <main id="app-main" class="main" tabindex="-1"></main>
     </div>
 
-    <div id="live-announcer" class="visually-hidden" aria-live="assertive" aria-atomic="true"></div>
+    <div id="live-announcer" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
 
     <div id="approval-root" class="approval-root" hidden></div>
 
-    <script type="module" src="js/main.js"></script>
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

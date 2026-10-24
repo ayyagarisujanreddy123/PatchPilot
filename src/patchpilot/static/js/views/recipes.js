@@ -86,7 +86,7 @@ export function renderRecipes(root, snapshot) {
     const { recipes, ui } = snapshot;
     const list = recipes ?? [];
 
-    root.append(el("h2", { className: "panel__title" }, "Recipe memory"));
+    root.append(el("h1", { className: "panel__title" }, "Recipe memory"));
     root.append(
         el(
             "p",

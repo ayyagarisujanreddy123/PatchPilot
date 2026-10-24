@@ -2,6 +2,14 @@
 import { clearElement, el } from "../util.js";
 import { renderPlanSourceBadge } from "./badges.js";
 
+const checkNames = {
+    runtime_version: "PHP version", sapi: "HTTP serving mode",
+    upload_progress: "Upload-session mitigation", deployment_identity: "Tested deployment identity",
+    homepage: "Homepage content", contact_valid: "Contact form accepts valid input",
+    contact_invalid: "Contact form rejects invalid input", upload_size: "3 MiB upload byte count",
+    upload_hash: "3 MiB upload SHA-256",
+};
+
 function formatValue(value) {
     return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
@@ -25,7 +33,7 @@ function renderAssessment(assessment, sites) {
         el("h4", {}, "Proposed changes"),
         el("ul", {}, (assessment.proposedChanges ?? []).map((change) => el("li", {}, formatValue(change)))),
         el("h4", {}, "Required verification"),
-        el("ul", {}, (assessment.requiredChecks ?? []).map((check) => el("li", {}, formatValue(check)))),
+        el("ul", {}, (assessment.requiredChecks ?? []).map((check) => el("li", {}, checkNames[check] ?? formatValue(check)))),
         assessment.blockedReason ? el("p", { className: "hint hint--disabled", attrs: { role: "status" } }, assessment.blockedReason) : null,
     ]);
 }
@@ -37,7 +45,10 @@ function renderMockPlan(plan, site) {
         el("p", {}, site?.org_name ?? "Demo site"),
         el("h3", {}, "Proposed changes"),
         el("p", {}, plan?.target_image ?? "Loading demo plan…"),
-        el("pre", {}, JSON.stringify(plan?.config ?? [], null, 2)),
+        el("details", { id: "approval-demo-config" }, [
+            el("summary", { id: "approval-demo-config-summary" }, "Configuration details"),
+            el("pre", {}, JSON.stringify(plan?.config ?? [], null, 2)),
+        ]),
         el("p", {}, plan?.rationale ?? ""),
     ]);
 }
@@ -64,7 +75,7 @@ export function renderApproval(root, snapshot, handlers) {
     approve.addEventListener("click", () => handlers.onApprove(ui.approvalSiteId));
     const cancel = el("button", { className: "btn btn--secondary", attrs: { type: "button", id: "approval-cancel", disabled: ui.approvalSubmitting ? "disabled" : undefined } }, "Cancel");
     cancel.addEventListener("click", handlers.closeApproval);
-    const body = el("div", { className: "drawer__body" }, [
+    const body = el("div", { className: "drawer__body", id: `approval-body-${ui.approvalSiteId}` }, [
         el("p", { id: "approval-scope" }, `Repair scope: ${scope.map((id) => sites.find((site) => site.id === id)?.org_name ?? id).join(", ")}.`),
         scope.length > 1 ? el("p", { className: "approval__note" }, "The backend repairs this approved fleet sequentially, with fresh checks for each site.") : null,
     ]);
@@ -87,21 +98,23 @@ export function renderApproval(root, snapshot, handlers) {
             body.append(el("p", { className: "hint" }, "Retrying approval keeps the same run submission key. Cancel and reassess if the backend reports a stale assessment."));
         }
     }
-    const drawer = el("div", { className: "drawer", attrs: { role: "dialog", "aria-modal": "true", "aria-labelledby": "approval-title", "aria-describedby": "approval-scope" } }, [
+    const drawer = el("div", { className: "drawer", id: "approval-dialog", attrs: { role: "dialog", tabindex: "-1", "aria-modal": "true", "aria-labelledby": "approval-title", "aria-describedby": "approval-scope" } }, [
         el("header", { className: "drawer__header" }, [el("h2", { id: "approval-title", className: "drawer__title" }, "Review security assessment"), close]),
         body, el("footer", { className: "drawer__footer" }, [cancel, approve]),
     ]);
     root.append(overlay, drawer);
-    if (!wasOpen) { requestAnimationFrame(() => document.getElementById("approval-close")?.focus()); }
+    if (!wasOpen) { requestAnimationFrame(() => document.getElementById("approval-cancel")?.focus()); }
 }
 
 export function bindApprovalEscape(handler) {
     const onKey = (event) => {
-        if (event.key === "Escape") { handler(); }
+        const dialog = document.querySelector("#approval-root [role=dialog]");
+        if (!dialog) { return; }
+        if (event.key === "Escape") { event.preventDefault(); handler(); return; }
         if (event.key === "Tab") {
-            const dialog = document.querySelector("#approval-root [role=dialog]");
-            const controls = [...(dialog?.querySelectorAll("button:not([disabled]), a[href], input:not([disabled]), [tabindex='0']") ?? [])];
-            if (!controls.length) { event.preventDefault(); return; }
+            const controls = [...dialog.querySelectorAll("button:not([disabled]), a[href], input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]")]
+                .filter((control) => control.tabIndex >= 0 && !control.closest("[hidden], [inert]") && control.getClientRects().length > 0);
+            if (!controls.length) { event.preventDefault(); dialog.focus(); return; }
             const first = controls[0];
             const last = controls[controls.length - 1];
             if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {

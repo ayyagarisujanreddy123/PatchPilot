@@ -57,7 +57,7 @@ function renderConfigTable(config) {
         el(
             "tbody",
             {},
-            rows.map(([key, value]) => el("tr", {}, [el("th", { scope: "row" }, key), el("td", {}, value ?? "—")])),
+            rows.map(([key, value]) => el("tr", {}, [el("th", { attrs: { scope: "row" } }, key), el("td", {}, value ?? "—")])),
         ),
     );
 }
@@ -77,12 +77,16 @@ function computeConfigDiff(before, after) {
     return diff;
 }
 
-function renderConfigDiff(before, after) {
+function renderConfigDiff(before, after, context) {
     const diff = computeConfigDiff(before, after);
     if (!diff.length) {
         return el("p", { className: "run-muted" }, "No configuration changes between attempts.");
     }
-    const wrap = el("div", { className: "table-scroll" });
+    const wrap = el("div", { className: "table-scroll", id: `${context}-scroll`, attrs: {
+        tabindex: "0", role: "region",
+        "aria-label": "Repair evidence table; scroll horizontally for all columns",
+        "aria-describedby": `${context}-scroll-hint`,
+    } });
     wrap.append(
         el(
             "table",
@@ -92,9 +96,9 @@ function renderConfigDiff(before, after) {
                     "thead",
                     {},
                     el("tr", {}, [
-                        el("th", { scope: "col" }, "Setting"),
-                        el("th", { scope: "col" }, "Attempt 1"),
-                        el("th", { scope: "col" }, "Attempt 2"),
+                        el("th", { attrs: { scope: "col" } }, "Setting"),
+                        el("th", { attrs: { scope: "col" } }, "Attempt 1"),
+                        el("th", { attrs: { scope: "col" } }, "Attempt 2"),
                     ]),
                 ),
                 el(
@@ -102,7 +106,7 @@ function renderConfigDiff(before, after) {
                     {},
                     diff.map((row) =>
                         el("tr", {}, [
-                            el("th", { scope: "row" }, row.key),
+                            el("th", { attrs: { scope: "row" } }, row.key),
                             el("td", {}, row.before),
                             el("td", {}, row.after),
                         ]),
@@ -111,7 +115,9 @@ function renderConfigDiff(before, after) {
             ],
         ),
     );
-    return wrap;
+    return el("div", { className: "evidence-table" }, [wrap,
+        el("p", { id: `${context}-scroll-hint`, className: "table-scroll-hint" }, "Scroll horizontally to view all columns."),
+    ]);
 }
 
 function outcomeBannerMeta(run, site) {
@@ -200,7 +206,7 @@ function renderStepper(stages, ownerMode) {
                     attrs: { "aria-current": state === "running" ? "step" : undefined },
                 },
                 [
-                    el("span", { className: "stepper__state", attrs: { "aria-hidden": "true" } }, STAGE_STATE_LABELS[state] ?? state),
+                    el("span", { className: "stepper__state" }, STAGE_STATE_LABELS[state] ?? state),
                     el("span", { className: "stepper__label" }, label),
                     el("span", { className: "stepper__duration" }, formatDuration(stage.duration_ms)),
                 ],
@@ -225,7 +231,7 @@ function renderPassFail(passed, ownerMode) {
     ]);
 }
 
-function renderChecksTable(checks, site, ownerMode, technicalDefaultOpen) {
+function renderChecksTable(checks, site, ownerMode, technicalDefaultOpen, context) {
     const byKey = Object.fromEntries((checks ?? []).map((c) => [c.key, c]));
     const isUpload = site?.type === "upload";
     const keys = CHECK_ORDER.filter((k) => isUpload || k !== "upload_capability");
@@ -235,49 +241,31 @@ function renderChecksTable(checks, site, ownerMode, technicalDefaultOpen) {
         const label = ownerMode ? CHECK_OWNER_LABELS[key] : CHECK_TECH_LABELS[key];
         const expected = check?.expected ?? "—";
         const observed = check?.observed ?? "—";
-        const evidenceId = `evidence-${key}-${check?.n ?? 1}`;
+        const evidenceId = `${context}-${key}-evidence`;
         const hasEvidence = Boolean(check?.evidence);
 
-        const detail = el("div", { className: "check-detail", id: evidenceId, hidden: !technicalDefaultOpen && hasEvidence });
-        if (hasEvidence) {
-            detail.append(el("pre", { className: "check-detail__pre" }, check.evidence));
-        } else {
-            detail.append(el("p", { className: "run-muted" }, "No technical detail recorded."));
-        }
-
-        const toggle = hasEvidence
-            ? el(
-                  "button",
-                  {
-                      className: "link-button check-detail-toggle",
-                      attrs: {
-                          type: "button",
-                          "aria-expanded": technicalDefaultOpen ? "true" : "false",
-                          "aria-controls": evidenceId,
-                      },
-                  },
-                  "Technical detail",
-              )
-            : null;
-
-        if (toggle) {
-            toggle.addEventListener("click", () => {
-                const open = detail.hidden;
-                detail.hidden = !open;
-                toggle.setAttribute("aria-expanded", open ? "true" : "false");
-            });
-        }
+        const detail = hasEvidence ? el("details", {
+            className: "check-detail", id: evidenceId,
+            attrs: { open: technicalDefaultOpen ? "" : undefined },
+        }, [
+            el("summary", { id: `${evidenceId}-summary`, className: "check-detail-toggle" }, "Technical detail"),
+            el("pre", { className: "check-detail__pre" }, check.evidence),
+        ]) : null;
 
         return el("tr", {}, [
-            el("th", { scope: "row" }, label),
+            el("th", { attrs: { scope: "row" } }, label),
             el("td", {}, ownerMode ? expected : `expected: ${expected}`),
             el("td", {}, ownerMode ? observed : `observed: ${observed}`),
             el("td", {}, renderPassFail(check?.passed, ownerMode)),
-            el("td", {}, toggle ?? "—"),
+            el("td", {}, detail ?? "No technical detail recorded."),
         ]);
     });
 
-    const wrap = el("div", { className: "table-scroll" });
+    const wrap = el("div", { className: "table-scroll", id: `${context}-scroll`, attrs: {
+        tabindex: "0", role: "region",
+        "aria-label": "Repair evidence table; scroll horizontally for all columns",
+        "aria-describedby": `${context}-scroll-hint`,
+    } });
     wrap.append(
         el(
             "table",
@@ -287,21 +275,23 @@ function renderChecksTable(checks, site, ownerMode, technicalDefaultOpen) {
                     "thead",
                     {},
                     el("tr", {}, [
-                        el("th", { scope: "col" }, "Check"),
-                        el("th", { scope: "col" }, "Expected"),
-                        el("th", { scope: "col" }, "Observed"),
-                        el("th", { scope: "col" }, "Result"),
-                        el("th", { scope: "col" }, "Detail"),
+                        el("th", { attrs: { scope: "col" } }, "Check"),
+                        el("th", { attrs: { scope: "col" } }, "Expected"),
+                        el("th", { attrs: { scope: "col" } }, "Observed"),
+                        el("th", { attrs: { scope: "col" } }, "Result"),
+                        el("th", { attrs: { scope: "col" } }, "Detail"),
                     ]),
                 ),
                 el("tbody", {}, rows),
             ],
         ),
     );
-    return wrap;
+    return el("div", { className: "evidence-table" }, [wrap,
+        el("p", { id: `${context}-scroll-hint`, className: "table-scroll-hint" }, "Scroll horizontally to view all columns."),
+    ]);
 }
 
-function renderAttempt(attempt, site, ownerMode) {
+function renderAttempt(attempt, site, ownerMode, context) {
     const badge = renderPlanSourceBadge(attempt.plan_source);
     const resultLabel = attempt.result ?? "In progress";
     return el("article", { className: "attempt-card" }, [
@@ -319,7 +309,7 @@ function renderAttempt(attempt, site, ownerMode) {
             ? el("h4", { className: "attempt-card__subtitle" }, "Verification checks (this attempt)")
             : null,
         attempt.checks?.length
-            ? renderChecksTable(attempt.checks, site, ownerMode, !ownerMode)
+            ? renderChecksTable(attempt.checks, site, ownerMode, !ownerMode, context)
             : null,
     ].filter(Boolean));
 }
@@ -337,6 +327,7 @@ export function renderRun(root, snapshot, handlers) {
     const run = runs[siteId] ?? null;
     const ownerMode = ui.ownerMode !== false;
     const technicalDefaultOpen = !ownerMode;
+    const context = `mock-${encodeURIComponent(run?.id ?? "unrecorded")}-${encodeURIComponent(siteId ?? "site")}`;
 
     const back = el(
         "a",
@@ -350,7 +341,7 @@ export function renderRun(root, snapshot, handlers) {
 
     root.append(
         back,
-        el("h2", { className: "panel__title" }, site?.org_name ?? "Run detail"),
+        el("h1", { className: "panel__title" }, site?.org_name ?? "Run detail"),
         site ? renderStatusBadge(site.status) : null,
     );
 
@@ -396,8 +387,6 @@ export function renderRun(root, snapshot, handlers) {
         return;
     }
 
-    root.append(renderOutcomeBanner(run, site));
-
     const latestPlanSource = run.attempts?.[run.attempts.length - 1]?.plan_source ?? site?.plan_source;
     if (isRecipeReuse(latestPlanSource)) {
         root.append(
@@ -405,7 +394,7 @@ export function renderRun(root, snapshot, handlers) {
         );
     }
 
-    root.append(el("h3", { className: "run-section-title" }, "Workflow"));
+    root.append(el("h2", { className: "run-section-title" }, "Repair progress"));
     root.append(renderStepper(run.stages, ownerMode));
 
     if (run.rejections != null || run.rollbacks != null) {
@@ -418,21 +407,22 @@ export function renderRun(root, snapshot, handlers) {
         );
     }
 
-    root.append(el("h3", { className: "run-section-title" }, "Attempts"));
+    root.append(el("h2", { className: "run-section-title" }, "Repair report"));
+    root.append(renderOutcomeBanner(run, site));
     const attemptsWrap = el("div", { className: "attempts-list" });
-    for (const attempt of run.attempts ?? []) {
-        attemptsWrap.append(renderAttempt(attempt, site, ownerMode));
+    for (const [index, attempt] of (run.attempts ?? []).entries()) {
+        attemptsWrap.append(renderAttempt(attempt, site, ownerMode, `${context}-attempt-${index + 1}-checks`));
     }
     root.append(attemptsWrap);
 
     if ((run.attempts?.length ?? 0) >= 2) {
         root.append(el("h3", { className: "run-section-title" }, "Config changes (Attempt 1 → 2)"));
-        root.append(renderConfigDiff(run.attempts[0].config, run.attempts[1].config));
+        root.append(renderConfigDiff(run.attempts[0].config, run.attempts[1].config, `${context}-config-diff`));
     }
 
     const activeAttempt = run.attempts?.[run.attempts.length - 1];
     if (activeAttempt?.checks?.length) {
         root.append(el("h3", { className: "run-section-title" }, "Latest verification checks"));
-        root.append(renderChecksTable(activeAttempt.checks, site, ownerMode, technicalDefaultOpen));
+        root.append(renderChecksTable(activeAttempt.checks, site, ownerMode, technicalDefaultOpen, `${context}-latest-checks`));
     }
 }

@@ -28,7 +28,7 @@ def wait_run(client, run_id):
 
 
 def test_owner_flow_serves_dashboard_and_preserves_target(client):
-    assert '<title>PatchPilot</title>' in client.get("/").text
+    assert 'data-page="dashboard"' in client.get("/dashboard").text
     assert client.get("/styles.css").status_code == 200
     assert client.get("/js/main.js").status_code == 200
     assert client.get("/static/js/main.js").status_code == 200

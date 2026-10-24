@@ -4,11 +4,14 @@
 
 const initialUi = {
     route: "fleet",
+    siteUrl: "",
+    siteFilter: "all",
     selectedSiteId: null,
     ownerMode: true,
     eventLogAutoScroll: true,
     eventLogSiteFilter: "all",
     demoControlsOpen: false,
+    clearRecipes: false,
     seedFault: false,
     approvalSiteId: null,
     approvalSiteIds: [],

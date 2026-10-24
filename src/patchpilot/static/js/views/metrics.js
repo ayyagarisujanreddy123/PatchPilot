@@ -252,7 +252,7 @@ export function renderMetrics(root, snapshot) {
     clearElement(root);
     const { metrics, ui } = snapshot;
 
-    root.append(el("h2", { className: "panel__title" }, "Metrics & evidence"));
+    root.append(el("h1", { className: "panel__title" }, "Demo insights"));
     root.append(
         el(
             "p",

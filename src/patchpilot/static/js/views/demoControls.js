@@ -34,9 +34,12 @@ export function renderDemoControls(root, snapshot, handlers) {
         className: "demo-controls__checkbox",
         attrs: {
             type: "checkbox",
+            checked: ui.clearRecipes ? "checked" : undefined,
             disabled: disabled ? "disabled" : undefined,
         },
     });
+
+    clearMemoryCheckbox.addEventListener("change", () => handlers.onClearMemoryChange(clearMemoryCheckbox.checked));
 
     const resetBtn = el(
         "button",

@@ -54,7 +54,7 @@ export function renderEvents(root, snapshot, handlers) {
     const { events, sites, ui } = snapshot;
     const filtered = filterEvents(events, ui.eventLogSiteFilter);
 
-    root.append(el("h2", { className: "panel__title" }, "Event log"));
+    root.append(el("span", { className: "eyebrow" }, "Workspace / Activity"), el("h1", { className: "panel__title" }, "Activity log"));
     root.append(
         el("p", { className: "panel__lede" }, "Append-only feed from the repair worker. Newest entries appear at the bottom."),
     );

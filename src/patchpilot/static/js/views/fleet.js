@@ -1,229 +1,94 @@
-/**
- * Fleet overview: summary bar, site cards, repair actions.
- */
-
+/** Next useful action first; measured state and recorded evidence follow. */
 import { clearElement, el } from "../util.js";
-import {
-    formatChecks,
-    isRepairEligible,
-    renderPlanSourceBadge,
-    renderStatusBadge,
-    siteTypeLabel,
-} from "./badges.js";
+import { icon } from "../icons.js";
+import { isRepairEligible } from "./badges.js";
+import { renderReadiness } from "../components/readiness.js";
+import { renderSites } from "./sites.js";
 
-const BUSY_REASON = "Another repair or reset is in progress.";
+const attention = new Set(["vulnerable", "needs_help", "restoration_failed", "restored_unpatched", "candidate_rejected"]);
 
-function siteCardAccentClass(status) {
-    if (!status) {
-        return "site-card--neutral";
-    }
-    if (status === "vulnerable" || status === "restored_unpatched") {
-        return "site-card--vulnerable";
-    }
-    if (status === "patched_verified") {
-        return "site-card--verified";
-    }
-    if (["restoration_failed", "needs_help", "candidate_rejected"].includes(status)) {
-        return "site-card--danger";
-    }
-    const active = new Set([
-        "assessing",
-        "awaiting_approval",
-        "staging",
-        "testing",
-        "revising",
-        "activating",
-        "rechecking",
-    ]);
-    if (active.has(status)) {
-        return "site-card--progress";
-    }
-    return "site-card--neutral";
-}
-
-function metricValue(value) {
-    return value == null ? "—" : String(value);
-}
-
-function renderSummaryBar(metrics) {
-    const m = metrics ?? {};
-    const items = [
-        { label: "Sites patched", value: `${metricValue(m.sites_patched)}/${metricValue(m.sites_total)}` },
-        { label: "Needing help", value: metricValue(m.sites_needing_help) },
-        { label: "Staging rejections", value: metricValue(m.rejections) },
-        { label: "Live rollbacks", value: metricValue(m.rollbacks) },
+function summary(sites) {
+    const values = [
+        ["globe", "Registered sites", sites.length, "In this workspace"],
+        ["shield", "Verified repairs", sites.filter((s) => s.status === "patched_verified").length, "Current deployments"],
+        ["alert", "Need attention", sites.filter((s) => attention.has(s.status)).length, "Recorded findings or failures"],
+        ["clock", "Awaiting assessment", sites.filter((s) => s.status === "unassessed").length, "Security status not yet checked"],
     ];
-    return el(
-        "div",
-        { className: "summary-bar", attrs: { "aria-label": "Fleet summary" } },
-        items.map((item) =>
-            el("div", { className: "summary-bar__item" }, [
-                el("span", { className: "summary-bar__label" }, item.label),
-                el("span", { className: "summary-bar__value" }, item.value),
-            ]),
-        ),
-    );
+    return el("dl", { className: "workspace-stats", attrs: { "aria-label": "Current workspace summary" } }, values.map(([symbol, label, value, hint]) =>
+        el("div", { className: "workspace-stat" }, [el("dt", {}, [icon(symbol), label]), el("dd", {}, [value, el("p", {}, hint)])])));
 }
 
-function renderSiteCard(site, handlers, { busy, disabledReason }) {
-    const planBadge = renderPlanSourceBadge(site.plan_source);
-    const statusBadge = renderStatusBadge(site.status);
-    const canRepair = !busy && isRepairEligible(site.status);
-    const repairDisabled = !canRepair;
-    const repairReason = busy ? disabledReason : null;
+function assessmentForm({ ui, sites }, handlers, disabled) {
+    const input = el("input", { className: "registered-url__input", id: "registered-site-url", attrs: {
+        type: "text", inputmode: "url", placeholder: sites[0]?.address ?? "http://127.0.0.1:8081", required: "required",
+        autocomplete: "url", spellcheck: "false", "aria-invalid": ui.urlError ? "true" : "false",
+        "aria-describedby": `registered-url-help${ui.urlError ? " registered-url-error" : ""}`,
+    } });
+    input.value = ui.siteUrl ?? "";
+    input.addEventListener("input", () => handlers.onUrlChange(input.value));
+    const form = el("form", { className: "assessment-form" }, [
+        el("label", { attrs: { for: "registered-site-url" } }, "Website URL"),
+        el("div", { className: "registered-url__row" }, [input,
+            el("button", { className: "btn btn--primary", attrs: { id: "assess-url", type: "submit", disabled: disabled ? "disabled" : undefined } }, "Assess site", icon("arrow"))]),
+        el("p", { id: "registered-url-help", className: "hint" }, "Use a registered local URL below. Public sites need an authorized hosting connection."),
+        ui.urlError ? el("p", { id: "registered-url-error", className: "field-error", attrs: { role: "alert" } }, [icon("info"), ui.urlError]) : null,
+    ]);
+    form.addEventListener("submit", (event) => { event.preventDefault(); handlers.onAssessUrl(input.value.trim()); });
+    return el("section", { className: "assessment-panel", attrs: { "aria-labelledby": "assessment-title" } }, [
+        el("div", { className: "assessment-panel__intro" }, [el("span", { className: "eyebrow" }, "Start with visibility"),
+            el("h2", { id: "assessment-title" }, "A safer site starts with a clear assessment."),
+            el("p", {}, "Check the serving PHP version and security configuration. Review the findings before you decide what changes."),
+            el("span", { className: "assurance" }, [icon("shield"), "No repair without your approval"])]), form,
+    ]);
+}
 
-    const repairBtn = el(
-        "button",
-        {
-            className: "btn btn--primary",
-            attrs: {
-                type: "button",
-                id: `assess-site-${site.id}`,
-                disabled: repairDisabled ? "disabled" : undefined,
-                "aria-disabled": repairDisabled ? "true" : "false",
-            },
-        },
-        "Assess & review repair",
-    );
-    if (canRepair) {
-        repairBtn.addEventListener("click", () => handlers.openApproval(site.id));
-    }
-
-    const viewRun = el(
-        "a",
-        {
-            className: "btn btn--ghost",
-            attrs: { href: `#/run/${site.id}`, id: `view-run-${site.id}` },
-        },
-        "View run",
-    );
-    viewRun.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        handlers.viewRun(site.id);
-    });
-
-    const disabledNote =
-        repairReason && repairDisabled
-            ? el("p", { className: "hint hint--disabled" }, repairReason)
-            : null;
-
-    return el(
-        "article",
-        {
-            className: `site-card ${siteCardAccentClass(site.status)}`,
-            attrs: { "aria-labelledby": `site-title-${site.id}` },
-        },
-        [
-            el("header", { className: "site-card__header" }, [
-                el("h3", { className: "site-card__title", id: `site-title-${site.id}` }, site.org_name ?? "—"),
-                el("span", { className: "site-card__type" }, siteTypeLabel(site.type)),
-            ]),
-            el("dl", { className: "site-card__meta" }, [
-                el("div", { className: "site-card__row" }, [
-                    el("dt", {}, "Address"),
-                    el("dd", {}, site.address ?? "—"),
-                ]),
-                el("div", { className: "site-card__row" }, [
-                    el("dt", {}, "PHP / SAPI"),
-                    el("dd", {}, `${site.php_version ?? "—"} · ${site.sapi ?? "—"}`),
-                ]),
-                el("div", { className: "site-card__row" }, [
-                    el("dt", {}, "Checks passed"),
-                    el("dd", {}, formatChecks(site.checks_passed, site.checks_required)),
-                ]),
-                el("div", { className: "site-card__row" }, [
-                    el("dt", {}, "Attempts"),
-                    el("dd", {}, site.attempts == null ? "—" : String(site.attempts)),
-                ]),
-            ]),
-            el("div", { className: "site-card__badges" }, [statusBadge, planBadge].filter(Boolean)),
-            el("div", { className: "site-card__actions" }, [repairBtn, viewRun]),
-            disabledNote,
-        ].filter(Boolean),
-    );
+function activity(events, handlers) {
+    const view = el("button", { className: "text-action", attrs: { type: "button", id: "overview-view-activity" } }, "View activity", icon("arrow"));
+    view.addEventListener("click", handlers.onViewActivity);
+    const rows = [...events].slice(-3).reverse();
+    return el("section", { className: "workspace-panel activity-preview" }, [
+        el("div", { className: "section-heading" }, [el("h2", {}, "Recent run activity"), view]),
+        rows.length ? el("ul", { className: "activity-preview__list" }, rows.map((event) => el("li", {}, [
+            el("span", { className: "activity-dot", attrs: { "aria-hidden": "true" } }),
+            el("div", {}, [el("p", {}, event.message), el("span", {}, event.site_id ?? "Workspace")])])))
+            : el("p", { className: "muted empty-inline" }, "Your first assessment and repair will begin the activity trail."),
+        rows.length ? el("p", { className: "hint" }, "History may include runs before the latest reset.") : null,
+    ]);
 }
 
 export function renderFleet(root, snapshot, handlers) {
     clearElement(root);
-    const { sites, metrics, busy, ui, health } = snapshot;
-    const setupNeeded = !health?.ready || !health?.prepared;
-    const disabledReason = busy ? BUSY_REASON : "Prepare the registered fixtures before assessing a repair.";
-    const actionsDisabled = busy || ui.preparing || ui.resetting || setupNeeded;
-
-    root.append(el("h2", { className: "panel__title" }, "Fleet overview"));
-    root.append(el("p", { className: "panel__lede" }, "Assess the configured PHP security policy, review the proposed changes, and approve an exact repair scope. This prototype operates on registered local fixtures."));
-    if (metrics) { root.append(renderSummaryBar(metrics)); }
-    const urlInput = el("input", { id: "registered-site-url", className: "registered-url__input", attrs: {
-        type: "text", inputmode: "url", placeholder: sites[0]?.address ?? "http://127.0.0.1:8081", required: "required",
-        "aria-describedby": "registered-url-help", autocomplete: "url",
-    } });
-    urlInput.value = ui.siteUrl ?? "";
-    urlInput.addEventListener("input", () => handlers.onUrlChange(urlInput.value));
-    const urlForm = el("form", { className: "registered-url" }, [
-        el("label", { attrs: { for: "registered-site-url" } }, "Registered site URL"),
-        el("div", { className: "registered-url__row" }, [urlInput,
-            el("button", { className: "btn btn--primary", attrs: { id: "assess-url", type: "submit", disabled: actionsDisabled ? "disabled" : undefined } }, "Assess site")]),
-        el("p", { id: "registered-url-help", className: "hint" }, "Only configured local addresses are accepted. Other websites require an authorized hosting connection."),
-    ]);
-    urlForm.addEventListener("submit", (event) => { event.preventDefault(); handlers.onAssessUrl(urlInput.value.trim()); });
-    if (ui.urlError) { urlForm.append(el("p", { className: "hint hint--disabled", attrs: { role: "alert" } }, ui.urlError)); }
-    root.append(urlForm);
-    if (health?.mode !== "MOCK") {
-        const prepare = el("button", { className: "btn btn--secondary", attrs: { id: "prepare-fixtures", type: "button", disabled: busy || ui.preparing || ui.resetting || health?.dockerAvailable === false ? "disabled" : undefined } }, ui.preparing ? "Preparing fixtures…" : "Prepare local fixtures");
-        prepare.addEventListener("click", handlers.onPrepare);
-        root.append(el("div", { className: "fixture-readiness", attrs: { role: "status" } }, [
-            el("p", {}, ui.preparing ? "Starting the registered project fixtures. Preparation may take a few minutes." : health?.message ?? (health?.prepared ? "Local fixtures are prepared." : "Prepare the registered local fixtures to begin.")),
-            !health?.prepared ? prepare : null,
-        ]));
-    }
-
-    const eligibleIds = sites.filter((s) => isRepairEligible(s.status)).map((s) => s.id);
-    const repairAllDisabled = actionsDisabled || eligibleIds.length === 0;
-
-    const repairAllBtn = el(
-        "button",
-        {
-            className: "btn btn--primary btn--wide",
-            attrs: {
-                type: "button",
-                id: "assess-fleet",
-                disabled: repairAllDisabled ? "disabled" : undefined,
-            },
-        },
-        "Assess & review fleet repair",
-    );
-    if (!repairAllDisabled) {
-        repairAllBtn.addEventListener("click", () => handlers.startRepairAll(eligibleIds));
-    }
-
-    const toolbar = el("div", { className: "fleet-toolbar" }, repairAllBtn);
-    if (busy) {
-        toolbar.append(el("p", { className: "hint hint--disabled" }, disabledReason));
-    } else if (eligibleIds.length === 0) {
-        toolbar.append(
-            el("p", { className: "hint" }, "No vulnerable sites waiting for repair."),
-        );
-    }
-    root.append(toolbar);
-
+    const { sites, ui, health, busy, events } = snapshot;
+    const disabled = busy || ui.preparing || ui.resetting || !health?.ready || !health?.prepared;
+    const eligible = sites.filter((site) => isRepairEligible(site.status)).map((site) => site.id);
+    const filter = ui.siteFilter ?? "all";
+    const visible = sites.filter((site) => filter === "all" || (filter === "verified" ? site.status === "patched_verified" : attention.has(site.status)));
+    root.append(el("div", { className: "page-heading" }, [el("span", { className: "eyebrow" }, "Workspace / Overview"),
+        el("h1", {}, "Your sites, one clear view."), el("p", {}, "Understand the risk. Approve the change. See the evidence.")]), renderReadiness(snapshot, handlers));
     if (ui.loading) {
-        root.append(el("p", { className: "panel__lede", attrs: { role: "status" } }, "Loading fleet…"));
+        root.append(el("div", { className: "skeleton-grid", attrs: { role: "status", "aria-label": "Loading workspace" } }, [el("span", { className: "skeleton" }), el("span", { className: "skeleton" }), el("span", { className: "skeleton" })]));
         return;
     }
-
-    if (!sites.length) {
-        root.append(el("p", { className: "empty-state" }, "No registered sites yet."));
-        return;
-    }
-
-    const grid = el(
-        "div",
-        { className: "site-grid", attrs: { role: "list" } },
-        sites.map((site) =>
-            el("div", { className: "site-grid__cell", attrs: { role: "listitem" } }, [
-                renderSiteCard(site, handlers, { busy: actionsDisabled, disabledReason }),
-            ]),
-        ),
-    );
-    root.append(grid);
+    root.append(summary(sites), assessmentForm(snapshot, handlers, disabled));
+    const assessAll = el("button", { className: "btn btn--secondary btn--small", attrs: { type: "button", id: "assess-fleet", disabled: disabled || !eligible.length ? "disabled" : undefined } }, "Assess all sites", icon("arrow"));
+    assessAll.addEventListener("click", () => handlers.startRepairAll(eligible));
+    const filters = el("div", { className: "segmented-control", attrs: { "aria-label": "Filter registered sites" } }, [["all", "All sites"], ["attention", "Needs attention"], ["verified", "Verified"]].map(([value, label]) => {
+        const button = el("button", { attrs: { id: `site-filter-${value}`, type: "button", "aria-pressed": filter === value ? "true" : "false" } }, label);
+        button.addEventListener("click", () => handlers.onSiteFilter(value));
+        return button;
+    }));
+    root.append(el("section", { className: "sites-section", attrs: { "aria-labelledby": "sites-heading" } }, [
+        el("div", { className: "section-heading" }, [el("div", { className: "section-heading__title" }, [el("h2", { id: "sites-heading" }, "Registered sites"), el("span", { className: "count-badge" }, sites.length)]), assessAll]),
+        filters, renderSites(visible, handlers, disabled),
+    ]));
+    const workflowItems = [["Assess", "Observe the actual PHP runtime and behavior."],
+        ["Review & approve", "Choose the exact repair scope."], ["Stage & verify", "Test in isolation, then check the live site."]]
+        .map(([title, description], index) => el("li", {}, [
+            el("span", {}, index + 1), el("div", {}, [el("strong", {}, title), el("p", {}, description)]),
+        ]));
+    root.append(el("div", { className: "overview-bottom" }, [
+        el("section", { className: "workspace-panel workflow-guide" }, [el("h2", {}, "A deliberate path to repair"), el("ol", {}, workflowItems)]),
+        activity(events, handlers),
+    ]));
+    root.append(el("p", { className: "workspace-scope" }, [icon("info"), "This prototype checks a reviewed PHP runtime and configuration policy on registered local sites."]));
 }

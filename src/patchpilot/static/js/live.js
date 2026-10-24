@@ -33,7 +33,8 @@ export function normalizeSite(site, run = null, assessment = null) {
         capabilities: site.capabilities ?? [],
         php_version: site.phpVersion ?? observed.phpVersion ?? observed.php_version ?? runtime.phpVersion ?? null,
         sapi: site.sapi ?? observed.sapi ?? runtime.sapi ?? null,
-        status: run ? normalizeState(state) : assessment?.canRepair ? "vulnerable" : "unassessed",
+        status: run ? state === "VERIFIED" && (result?.evidenceComplete ?? run.evidenceComplete) !== true
+            ? "finalizing" : normalizeState(state) : assessment?.canRepair ? "vulnerable" : "unassessed",
         plan_source: result?.planSource ?? run?.planSource ?? null,
         checks_passed: checks.length ? checks.filter((check) => check.passed).length : null,
         checks_required: checks.length || null,

@@ -18,11 +18,13 @@ const sites = [
     { siteId: "clinic-a", displayName: "Clinic", baseUrl: "http://127.0.0.1:8083", capabilities: ["homepage", "contact", "upload"] },
 ];
 const oldRun = { runId: "run-old", siteIds: ["pantry-a"], currentSiteId: "pantry-a", state: "VERIFIED", startedAt: "2026-10-24T10:00:00Z", finishedAt: "2026-10-24T10:01:00Z", checks: [], planSource: "MODEL" };
-const liveRun = { runId: "run-new", siteIds: ["pantry-a", "clinic-a"], currentSiteId: "clinic-a", state: "STAGING", startedAt: "2026-10-24T11:00:00Z", finishedAt: null, planSource: "MODEL", checks: [], siteResults: { "pantry-a": { state: "VERIFIED", planSource: "VERIFIED_RECIPE", final: { php_version: "8.3.36", sapi: "apache2handler" }, checks: [
+const liveRun = { runId: "run-new", siteIds: ["pantry-a", "clinic-a"], currentSiteId: "clinic-a", state: "STAGING", startedAt: "2026-10-24T11:00:00Z", finishedAt: null, planSource: "MODEL", checks: [], siteResults: { "pantry-a": { state: "VERIFIED", evidenceComplete: true, planSource: "VERIFIED_RECIPE", final: { php_version: "8.3.36", sapi: "apache2handler" }, checks: [
     { checkId: "upload", siteId: "pantry-a", phase: "STAGING", passed: false },
     { checkId: "homepage", siteId: "pantry-a", phase: "LIVE", passed: true },
 ] } } };
 function response(body, status = 200) { return { status, ok: status >= 200 && status < 300, json: async () => body }; }
+const unfinished = normalizeSite(sites[0], { runId: "unfinished", siteIds: ["pantry-a"], currentSiteId: "pantry-a", state: "VERIFIED", evidenceComplete: false });
+assert.notEqual(unfinished.status, "patched_verified", "a worker checkpoint must not become a verified site before its evidence is complete");
 globalThis.fetch = async (path, init = {}) => {
     const body = init.body ? JSON.parse(init.body) : null;
     calls.push({ path, ...init, body });

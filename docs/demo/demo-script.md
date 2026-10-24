@@ -17,11 +17,11 @@ authorized deployment or repository connection in a later integration.
 Follow the installation and Docker context instructions in [README](../../README.md).
 Run one controller on `http://127.0.0.1:8765`. Keep the ignored `.env` local.
 
-1. Open the dashboard and confirm **Real local fixtures**.
-2. Select **Prepare local fixtures** if the controller is not prepared. The first
+1. Open the landing page, select **Open dashboard**, and confirm **Real local fixtures**.
+2. Select **Prepare demo sites** if the controller is not prepared. The first
    preparation pulls images; later preparation can reuse locally verified digests.
 3. Enter `http://127.0.0.1:8081` and select **Assess site**, or choose
-   **Assess & review fleet repair** to demonstrate all four sites.
+   **Assess all sites** to demonstrate all four sites.
 4. Review the observed PHP version, mitigation setting, proposed changes, and
    required checks. Approve only this displayed scope.
 5. Follow the run. Success requires checks against the candidate and again at the
@@ -31,7 +31,7 @@ Run one controller on `http://127.0.0.1:8765`. Keep the ignored `.env` local.
 
 ## Reset and repeat
 
-Open **Demo controls**, optionally select **Also clear recipe memory**, and select
+Open **Workspace controls**, optionally select **Also clear recipe memory**, and select
 **Reset fleet**. Confirm the reset. It restores the vulnerable local baseline and
 retains historical reports. Current site cards must stop claiming a patched state.
 Clear recipes before demonstrating the first model proposal again.
