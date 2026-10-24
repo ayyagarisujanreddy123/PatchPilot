@@ -39,6 +39,7 @@ class DeploymentSnapshot:
     sapi: str
     upload_progress_enabled: bool
     base_image_digest: str | None = None
+    base_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,8 @@ class CheckResult:
     check_id: str
     passed: bool
     message: str = ""
+    phase: str = ""
+    site_id: str = ""
 
 
 def checks_complete(site: Site, checks: tuple[CheckResult, ...]) -> bool:
