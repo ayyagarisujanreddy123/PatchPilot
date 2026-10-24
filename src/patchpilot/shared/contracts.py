@@ -171,6 +171,9 @@ class RunRecord(ContractModel):
     warnings: list[str] = Field(default_factory=list)
     error: Optional[str] = None
     approval_id: Optional[str] = None
+    original_identity: Optional[dict[str, Any]] = None
+    candidate_identity: Optional[dict[str, Any]] = None
+    candidate_spec: Optional[CandidateSpec] = None
     site_results: Optional[dict[str, Any]] = None
     changes: Optional[list[str]] = None
     security_results: Optional[dict[str, Any]] = None
@@ -178,5 +181,7 @@ class RunRecord(ContractModel):
     provenance: Optional[dict[str, Any]] = None
     durations: Optional[dict[str, int]] = None
     cleanup_result: Optional[dict[str, Any]] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
