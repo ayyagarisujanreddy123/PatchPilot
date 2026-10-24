@@ -187,6 +187,8 @@ class FileEventSink(EventSink):
         if not path.is_file():
             return [], 0
 
+        lock = await self._get_lock(run_id)
+
         def _read_events():
             events: list[RunEvent] = []
             max_seq = 0
@@ -202,9 +204,11 @@ class FileEventSink(EventSink):
                         if ev.sequence > after_sequence:
                             events.append(ev)
                     except Exception:
+                        # Skip incomplete lines from concurrent appends
                         continue
             paged = events[:limit]
             next_seq = paged[-1].sequence if paged else max_seq
             return paged, next_seq
 
-        return await asyncio.to_thread(_read_events)
+        async with lock:
+            return await asyncio.to_thread(_read_events)
