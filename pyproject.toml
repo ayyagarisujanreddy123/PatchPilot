@@ -28,3 +28,8 @@ packages = ["src/patchpilot"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "docker: requires a running Docker engine",
+    "live_model: requires a configured model provider",
+    "ui: requires Playwright browser",
+]
