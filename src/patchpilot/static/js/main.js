@@ -268,7 +268,7 @@ const eventsHandlers = {
 };
 
 const websiteHandlers = {
-    onUrlChange: (websiteUrl) => patchUi({ websiteUrl, websiteError: null }),
+    onUrlChange: (websiteUrl) => patchUi({ websiteUrl, websiteError: null }, { render: Boolean(getState().ui.websiteError) }),
     onExample: (websiteUrl) => {
         patchUi({ websiteUrl, websiteError: null });
         document.getElementById("website-url")?.focus();
@@ -297,30 +297,59 @@ const websiteHandlers = {
 
 async function refreshWebsiteState(forceHistory = false) {
     if (getState().ui.route !== "scan") { return; }
-    if (websiteRefresh) { return websiteRefresh; }
+    if (websiteRefresh) {
+        await websiteRefresh;
+        if (forceHistory) { return refreshWebsiteState(true); }
+        return;
+    }
+    const requestedSelection = getState().ui.selectedAssessmentId;
     websiteRefresh = (async () => {
-        const selected = getState().ui.selectedAssessmentId;
+        const selected = requestedSelection;
         const current = getState().websiteReports[selected];
-        const loadHistory = forceHistory || !getState().websiteLoaded || !WEBSITE_ACTIVE_STATES.has(current?.state);
+        const loadHistory = forceHistory || !getState().websiteLoaded;
         const errors = [];
-        if (loadHistory) {
-            const [history, examples] = await Promise.allSettled([getWebsiteAssessmentHistory(), getWebsiteExamples()]);
-            if (history.status === "fulfilled") { patchState({ websiteHistory: history.value }); }
-            else { errors.push(history.reason.message); }
-            if (examples.status === "fulfilled") { patchState({ websiteExamples: examples.value }); }
-            else { errors.push(`Public samples unavailable: ${examples.reason.message}`); }
+        const requests = [];
+        if (loadHistory) { requests.push(["history", getWebsiteAssessmentHistory()]); }
+        if (!getState().websiteExamplesLoaded || forceHistory) { requests.push(["examples", getWebsiteExamples()]); }
+        if (selected && (forceHistory || !current || WEBSITE_ACTIVE_STATES.has(current.state))) {
+            requests.push(["report", getWebsiteAssessment(decodeURIComponent(selected))]);
         }
-        if (selected) {
-            try {
-                const report = await getWebsiteAssessment(decodeURIComponent(selected));
-                patchState({ websiteReports: { ...getState().websiteReports, [selected]: report } });
-            } catch (err) { errors.push(err.message); }
+        const results = await Promise.allSettled(requests.map(([, request]) => request));
+        const update = {};
+        results.forEach((result, index) => {
+            const kind = requests[index][0];
+            if (result.status === "rejected") {
+                errors.push(`${kind === "examples" ? "Public samples unavailable: " : ""}${result.reason.message}`);
+                return;
+            }
+            if (kind === "examples") { update.websiteExamplesLoaded = true; }
+            if (kind === "history") { update.websiteLoaded = true; }
+            const value = result.value;
+            const field = kind === "history" ? "websiteHistory" : kind === "examples" ? "websiteExamples" : "websiteReports";
+            const previous = kind === "report" ? getState().websiteReports[selected] : getState()[field];
+            if (JSON.stringify(previous) !== JSON.stringify(value)) {
+                update[field] = kind === "report" ? { ...getState().websiteReports, [selected]: value } : value;
+            }
+        });
+        const ui = getState().ui;
+        const error = errors.join(" ") || null;
+        if (ui.websiteLoading || ui.websiteConnectionError !== error) {
+            update.ui = { ...ui, websiteLoading: false, websiteConnectionError: error };
         }
-        patchState({ websiteLoaded: true });
-        patchUi({ websiteLoading: false, websiteConnectionError: errors.join(" ") || null });
+        if (Object.keys(update).some((key) => update[key] !== getState()[key])) { patchState(update); }
         const latest = getState().websiteReports[getState().ui.selectedAssessmentId];
-        schedulePoll(WEBSITE_ACTIVE_STATES.has(latest?.state) || getState().ui.websiteSubmitting);
-    })().finally(() => { websiteRefresh = null; });
+        if (getState().ui.route === "scan") {
+            if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+            if (WEBSITE_ACTIVE_STATES.has(latest?.state) || getState().ui.websiteSubmitting || errors.length) {
+                schedulePoll(WEBSITE_ACTIVE_STATES.has(latest?.state) || getState().ui.websiteSubmitting);
+            }
+        }
+    })().finally(() => {
+        websiteRefresh = null;
+        if (getState().ui.route === "scan" && getState().ui.selectedAssessmentId !== requestedSelection) {
+            refreshWebsiteState();
+        }
+    });
     return websiteRefresh;
 }
 
@@ -585,6 +614,10 @@ function renderApp(snapshot) {
 }
 
 function bindGlobalHandlers() {
+    document.querySelector(".skip-link")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        document.getElementById("app-main")?.focus({ preventScroll: false });
+    });
     window.addEventListener("hashchange", () => {
         const { route, selectedSiteId, selectedAssessmentId } = parseRoute();
         patchUi({ route, selectedSiteId, selectedAssessmentId, runError: null });
@@ -637,7 +670,6 @@ async function boot() {
         renderApp(getState());
 
         await refreshCurrent();
-        renderApp(getState());
     } catch (err) {
         showBootError(err);
     }

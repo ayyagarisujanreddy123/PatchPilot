@@ -1,8 +1,9 @@
 # PatchPilot interface
 
 Plain HTML, CSS, and JavaScript ES modules; no frontend build step. FastAPI serves
-the product landing page at `/` and the workspace at `/dashboard`. Both explain
-that the prototype assesses authorized, registered local PHP fixtures.
+the product landing page at `/` and the workspace at `/dashboard`. The default
+task assesses a public website URL using fresh HTTP evidence and Anthropic guidance.
+The separate Repair lab operates registered local PHP fixtures.
 
 ## Structure
 
@@ -19,6 +20,22 @@ that the prototype assesses authorized, registered local PHP fixtures.
 | `js/mock.js` | Explicit simulated playback only |
 
 ## User flow
+
+1. Enter a public URL or choose **Try the PHP demo**, then **Assess website**.
+2. Watch the current real collection/Anthropic message; expand activity if needed.
+3. Review the compact overview and **What to fix first**. Each **Review fix** row
+   opens its steps; **View suggested code** reveals code separately.
+4. Use **All findings** or **View technical evidence** for confidence, supporting
+   observations, provenance, and coverage. Evidence links open the right record.
+5. **Check again** collects fresh evidence. **Check another website** opens the
+   URL form below the report. No suggested change is applied automatically.
+
+Idle/completed views stop polling. Active refreshes publish one store update and
+skip unchanged reports. Typing retains the input node; disclosures and focus
+survive updates. CSS depth/finite motion use no animation/3D dependencies and
+honor reduced motion.
+
+## Repair lab flow
 
 1. Select **Open dashboard**. The header distinguishes real fixtures from simulation.
 2. Follow readiness guidance. **Prepare demo sites** sets up the owned local fleet.
@@ -57,6 +74,7 @@ Run deterministic interface checks:
 
 ```bash
 node src/patchpilot/static/scripts/verify-api.mjs
+node src/patchpilot/static/scripts/verify-website.mjs
 node src/patchpilot/static/scripts/verify-mock.mjs
 ```
 
@@ -73,8 +91,9 @@ node scripts/verify-ui.cjs
 
 Installed macOS Chrome is detected; elsewhere set `CHROME_EXECUTABLE` or install
 Playwright Chromium. `PATCHPILOT_SCREENSHOTS=var/ui-qa` saves optional screenshots.
-The harness blocks external requests and HTTP writes, using only mock workflow
-mutations. It checks routing, keyboard focus, URL errors, responsive layouts,
-review dialogs, success/restoration states, and polling persistence.
+The harness blocks external requests and live HTTP writes. Website API responses
+are intercepted locally; lab mutations use JS simulation. It checks website
+states, disclosures, evidence links, idle requests/rendering, routing, keyboard
+focus, URL errors, responsive layouts, lab dialogs/recovery, and polling persistence.
 
 See [the design guide](../../../docs/design/interface.md) for the HCI rationale.

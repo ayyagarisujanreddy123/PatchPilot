@@ -10,18 +10,19 @@ export function renderHeader(root, { advisory, busy, mockMode, health, route, we
     const website = route === "scan";
     const isBusy = website ? websiteSubmitting || ["QUEUED", "COLLECTING", "ANALYZING"].includes(websiteReport?.state) : busy;
     const simulation = mockMode || health?.mode === "SIMULATION";
+    const location = website ? "Website assessment" : route === "events" ? "Lab activity" : route === "metrics" ? "Demo insights" : route === "recipes" ? "Recipe memory" : "Repair lab";
     root.append(el("div", { className: "header__brand" }, [
-        el("a", { className: "wordmark", attrs: { href: "/", "aria-label": "PatchPilot home" } }, [
+        el("a", { className: "wordmark", attrs: { href: "/", id: "header-home", "aria-label": "PatchPilot home" } }, [
             el("img", { attrs: { src: "/static/favicon.svg", alt: "", width: "30", height: "30" } }), "PatchPilot"]),
-        el("span", { className: "header__divider", attrs: { "aria-hidden": "true" } }, "/"),
-        el("span", { className: "header__workspace" }, "Security workspace"),
-    ]), el("div", { className: "header__meta" }, [
-        el("a", { className: "header__guide", attrs: { href: "/#workflow" } }, "Product guide", icon("book")),
-        el("span", { className: `chip ${!website && simulation ? "chip--simulation" : ""}` }, website ? "Public website assessment" : simulation ? "Repair lab · simulated" : health?.mode === "REAL" ? "Repair lab · local fixtures" : "Connecting to repair lab"),
+    ]), el("div", { className: "header__toolbar" }, [
+        el("div", { className: "header__location" }, [el("span", {}, "Workspace"), el("strong", {}, location)]),
+        el("div", { className: "header__meta" }, [
+        el("a", { className: "header__guide", attrs: { href: "/#faq", id: "header-product-guide" } }, icon("info"), "Help"),
+        el("span", { className: `chip ${!website && simulation ? "chip--simulation" : ""}` }, website ? "Read-only assessment" : simulation ? "Repair lab · simulated" : health?.mode === "REAL" ? "Local fixtures" : "Connecting"),
         el("span", { className: `busy-indicator ${isBusy ? "busy-indicator--active" : ""}` }, [
             el("span", { className: "busy-indicator__dot", attrs: { "aria-hidden": "true" } }),
             website ? websiteSubmitting ? "Starting…" : websiteLoading ? "Loading records" : websiteReport?.state === "COMPLETED" ? "Assessment completed" : websiteReport?.state === "FAILED" ? "Assessment stopped" : websiteReport ? "In progress" : "Ready" : busy ? "In progress" : health?.ready && health?.prepared ? "Ready" : "Setup needed"]),
-    ]));
+    ])]));
 }
 
 export function renderNav(root, { route, onNavigate, health }) {
@@ -29,9 +30,9 @@ export function renderNav(root, { route, onNavigate, health }) {
     const items = [
         { id: "scan", label: "Website assessment", symbol: "shield" },
         { id: "fleet", label: "Repair lab", symbol: "grid" },
-        { id: "events", label: "Lab activity", symbol: "activity" },
     ];
-    if (["MOCK", "SIMULATION"].includes(health?.mode)) {
+    if (route !== "scan") { items.push({ id: "events", label: "Lab activity", symbol: "activity" }); }
+    if (route !== "scan" && ["MOCK", "SIMULATION"].includes(health?.mode)) {
         items.push({ id: "metrics", label: "Demo insights", symbol: "code" }, { id: "recipes", label: "Recipe memory", symbol: "book" });
     }
     const list = el(
@@ -59,9 +60,9 @@ export function renderNav(root, { route, onNavigate, health }) {
         }),
     );
     root.append(el("span", { className: "nav__section-label" }, "Workspace"), list,
-        el("div", { className: "nav__assurance" }, [icon("shield"), el("strong", {}, "Evidence before conclusions"),
-            el("p", {}, "Fresh public responses. Clear coverage. Review every suggested fix.")]),
-        el("a", { className: "nav__help", attrs: { href: "/#faq" } }, [icon("info"), "Help & product scope"]));
+        el("div", { className: "nav__assurance" }, [icon("shield"), el("strong", {}, "Evidence first."),
+            el("p", {}, "You choose the next step.")]),
+        el("a", { className: "nav__help", attrs: { href: "/#faq", id: "nav-help" } }, [icon("info"), "Help & scope"]));
 }
 
 export function renderBackendBanner(root, { visible, message, onUseDemo }) {

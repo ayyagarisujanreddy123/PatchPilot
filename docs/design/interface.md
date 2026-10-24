@@ -13,11 +13,12 @@ The secondary **Explore repair lab simulation** link opens the separate local-la
 walkthrough; it is not a public-website result or fallback.
 
 The dashboard's default task is **Website assessment** at `/dashboard` (`#/scan`).
-Its order is public URL → collection/agent activity → PHP detection confidence →
-evidence-linked findings → recorded HTTP evidence → Anthropic remediation →
-coverage and limitations. The first HTTP response opens to show status, timing,
-bytes, and body fingerprint. Public sample buttons fill the form without starting
-a job or loading precomputed findings.
+Its empty state has one URL action and a small CSS 3D illustration. During a job,
+the real current collection/Anthropic message leads. Results show a compact
+finding/PHP/fix overview and prioritized **Review fix** rows. Steps and code open
+on demand. All findings, activity, evidence, provenance, and coverage start
+collapsed; **Check another website** moves the URL form below the report. Public
+samples fill the form without starting a job or loading precomputed findings.
 
 **Repair lab** (`#/fleet`) and **Lab activity** (`#/events`) are secondary navigation
 entries. The lab retains registered local targets, Docker preparation, exact-scope
@@ -50,7 +51,7 @@ assessment task, which needs no Docker preparation or repair approval.
 
 ## Evidence and analysis boundaries
 
-**Assessment completed** describes collection and analysis, not a verified patch
+**Ready to review** describes completed collection and analysis, not a verified patch
 or a declaration of website safety. Public PHP headers are reported signals;
 installed package/backport status and source-level vulnerabilities need additional
 access. Configuration observations retain severity, confidence, references, and
@@ -73,7 +74,10 @@ or an invented security success. Missing PHP/version evidence stays `UNKNOWN`.
 `landing.css` owns the public page. Website view modules separate report/progress,
 HTTP evidence, findings, and Anthropic guidance. Existing modules retain lab
 readiness, site records, approval, progress, and verification. All assets remain
-local, with no frontend framework or build dependency.
+local, with no frontend framework or build dependency. System fonts and CSS
+perspective avoid downloaded 3D/font packages. Idle and completed website views
+stop polling. Active refreshes publish one coherent state update and skip unchanged
+reports; typing updates the draft without rebuilding the input.
 
 `src/patchpilot/static/scripts/verify-website.mjs` checks public URL boundaries,
 session/CSRF handling, fill-only samples, unknown PHP, and partial-failure retention
@@ -83,17 +87,34 @@ using a fetch test double. It makes no live target or Anthropic requests.
 fill-only sample behavior, keyboard/modal behavior, 320/768/1024/1440px layouts,
 simulated lab success/restoration, and polling persistence. With axe-core installed,
 it also checks WCAG A/AA rules. The guarded harness blocks external requests and
-HTTP mutations, so it cannot start a real website scan, model call, or lab repair.
+live HTTP mutations, so it cannot start a real website scan, model call, or lab repair.
+Website state tests fulfill synthetic API responses locally, including creation;
+these intercepted requests never reach the controller or provider.
 Automated checks do not establish complete accessibility conformance or replace
 usability testing with participants.
 
 ## Recorded evidence and historical screens
+
+The focused redesign passed 28 guarded browser checks on 2026-10-24, with axe
+enabled and no reported violations, console/page errors, external requests, or
+forwarded HTTP writes. Website state tests used locally intercepted responses;
+they did not start a live assessment. Empty and completed views made zero API
+reads and zero main-view replacements during 4.5-second idle windows. A changing
+active test report made four report-only reads and four coherent renders, with
+no measured tasks over 50 ms. Layouts, motion preferences, nested evidence links,
+disclosure/focus preservation, and the existing lab regressions passed.
 
 The [demo guide](../demo/demo-script.md#recorded-live-website-acceptance) records the
 2026-10-24 browser-driven assessment of `http://php.testsparker.com/`: fresh HTTP
 200 evidence, six findings, three validated Anthropic recommendations, actual
 stream updates, and returned provider metadata. That record is separate from the
 guarded/test-double browser checks and from deployment-repair acceptance.
+
+Current interface screenshots:
+
+[Focused dashboard](screens/focused-dashboard.png) ·
+[Mobile dashboard](screens/focused-mobile.png) ·
+[Landing page](screens/focused-landing.png)
 
 The following screenshots document the earlier local repair workspace:
 
@@ -107,7 +128,7 @@ The local assessment screenshot shows PHP 8.3.35. The repair report carries a
 historical-result notice; it does not describe the new public URL assessment or
 prove a current remote deployment was patched.
 
-The current guarded harness passed 19 checks on 2026-10-24, including the default
+The previous guarded harness passed 19 checks on 2026-10-24, including the default
 public form, sample fill-only behavior, retained website draft/focus, keyboard skip,
 and 320/768/1024/1440px layout/accessibility checks, alongside all retained lab
 workflows. Axe was enabled and reported no tested WCAG A/AA violations. Console

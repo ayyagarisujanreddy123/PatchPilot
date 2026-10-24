@@ -49,6 +49,7 @@ let state = {
     events: [],
     lastEventId: 0,
     websiteLoaded: false,
+    websiteExamplesLoaded: false,
     websiteHistory: [],
     websiteExamples: [],
     websiteReports: {},
@@ -80,12 +81,12 @@ export function patchState(partial) {
     notify();
 }
 
-export function patchUi(partial) {
+export function patchUi(partial, { render = true } = {}) {
     state = {
         ...state,
         ui: { ...state.ui, ...partial },
     };
-    notify();
+    if (render) { notify(); }
 }
 
 export function setRun(siteId, run) {
@@ -143,6 +144,7 @@ export function resetStoreForMock() {
         events: [],
         lastEventId: 0,
         websiteLoaded: false,
+        websiteExamplesLoaded: false,
         websiteHistory: [],
         websiteExamples: [],
         websiteReports: {},

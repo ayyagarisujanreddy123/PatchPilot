@@ -29,7 +29,7 @@ fixture selection, or repair approval. The landing page is available at `/`.
 
 ## One-site walkthrough
 
-1. Select **Invicti PHP test site** to fill `http://php.testsparker.com/`. Explain
+1. Select **Try the PHP demo** to fill `http://php.testsparker.com/`. Explain
    that this is a public sample URL, not a saved report. The button fills the form
    only. Each start collects fresh responses.
 2. Select **Assess website**. The assessment receives its own ID and report URL.
@@ -39,21 +39,22 @@ fixture selection, or repair approval. The landing page is available at `/`.
    provider-generation message. Character counts come from received stream text;
    the screen does not invent percentages or wait through a canned animation.
    Fast responses may produce only a few updates.
-4. Inspect the response evidence: actual status, elapsed time, bytes read, body
+4. Open **View technical evidence** to inspect status, elapsed time, bytes read, body
    SHA-256, header names, and any truncation. Follow **View evidence** from a finding
    to its timestamped observation. Recorded values can change between assessments.
 5. Explain PHP confidence: `REPORTED` is a public response claim, `INFERRED` is a
    weaker signal, and `UNKNOWN` means PHP/version was not confirmed. A banner does
    not prove an installed binary or vendor backport status.
-6. At **Assessment completed**, show the validated Anthropic summary and suggested
-   configuration/code, steps, verification, and server-access requirements. Expand
-   **Analysis provenance** to show the returned model ID, provider message ID, and
-   token usage. Partial stream text is not presented as an accepted fix.
-7. Read **Coverage & limitations**. A completed assessment describes this evidence
+6. At **Ready to review**, show the overview and **What to fix first**. Open a
+   **Review fix** row for explanation, steps, and verification. **View suggested
+   code** reveals code only when needed. All observations remain under **All findings**.
+   Within **View technical evidence**, **Analysis provenance** shows the actual
+   model/message/token usage. Partial stream text is not accepted as a fix.
+7. Read **Coverage & limitations** inside technical evidence. A completed assessment describes this evidence
    and analysis; it does not declare the website safe or claim a verified repair.
    Applying suggestions requires owner review and authorized server/source access.
 
-Use **Assess this URL again** for a fresh report. Assessments belong to the issuing
+Use **Check again** for a fresh report. Assessments belong to the issuing
 browser session. A controller restart invalidates that session; create a fresh
 assessment after restarting.
 

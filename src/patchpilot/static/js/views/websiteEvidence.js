@@ -17,6 +17,11 @@ export function evidenceLinks(ids, report, context = "default") {
             const detail = document.getElementById(evidenceId(report.assessmentId, id));
             if (!detail) { return; }
             detail.open = true;
+            let ancestor = detail.parentElement?.closest("details");
+            while (ancestor) {
+                ancestor.open = true;
+                ancestor = ancestor.parentElement?.closest("details");
+            }
             detail.querySelector("summary")?.focus({ preventScroll: true });
             detail.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
         });
@@ -32,7 +37,7 @@ export function renderWebsiteEvidence(report) {
         el("p", { className: "muted" }, "Actual response metadata and observations collected for this assessment. Open a record for the details."),
     ]);
     if (!report.responses.length && !report.evidence.length) { root.append(el("p", {}, "No HTTP observations have been recorded yet.")); }
-    report.responses.forEach((response, index) => root.append(el("details", { className: "website-evidence-card", id: `website-response-${report.assessmentId}-${index}`, attrs: { open: index === 0 ? "open" : undefined } }, [
+    report.responses.forEach((response, index) => root.append(el("details", { className: "website-evidence-card", id: `website-response-${report.assessmentId}-${index}` }, [
         el("summary", { id: `website-response-summary-${report.assessmentId}-${index}` }, [el("strong", {}, `HTTP ${response.status}`), el("span", {}, response.url)]),
         el("div", { className: "website-evidence-body" }, [
             sourceLink(response.url),

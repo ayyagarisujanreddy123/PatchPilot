@@ -24,17 +24,19 @@ Open **[http://127.0.0.1:8765/dashboard](http://127.0.0.1:8765/dashboard)**. Thi
 
 ## Assess a real website
 
-1. Select **Invicti PHP test site** to fill `http://php.testsparker.com/`, or enter a public HTTP(S) page URL. The sample button fills the form only; it does not load precomputed results or start a request.
+1. Select **Try the PHP demo** to fill `http://php.testsparker.com/`, or enter a public HTTP(S) page URL. The sample button fills the form only; it does not load precomputed results or start a request.
 2. Select **Assess website**. The backend collects fresh, bounded normal GET responses and records their status, elapsed time, byte count, body SHA-256, and observations.
-3. Watch **Live agent activity**. `COLLECTING` describes actual HTTP collection; `ANALYZING` identifies the Anthropic agent. Generation messages report characters received from the actual provider stream, with recorded event timestamps. The UI uses no fabricated completion percentage or timed result playback.
-4. Review PHP detection as `REPORTED`, `INFERRED`, or `UNKNOWN`, then follow each finding's evidence links. A public PHP banner does not prove the installed binary's patch or backport status.
-5. Review the validated Anthropic guidance: explanation, suggested steps/configuration/code, verification, and access requirements. **Analysis provenance** shows the returned model ID, provider message ID, and input/output token usage. Code appears only after the structured response is validated.
+3. Watch the current collection or Anthropic message. Generation counts come from the actual provider stream. Expand **Live agent activity** for timestamped updates; no invented percentage is displayed.
+4. Review the compact finding/PHP/fix overview, then open a **Review fix** row under **What to fix first**. Steps and verification appear on demand; **View suggested code** reveals validated code. **All findings** contains every observation.
+5. Open **View technical evidence** for HTTP records, PHP detection, coverage, and **Analysis provenance** (actual model/message/token usage). Finding evidence links open their supporting record automatically. A PHP banner reports a release; it does not prove installed patch/backport status.
 
-**Assessment completed** means collection and analysis completed. Website assessment does not apply a patch or declare a website safe. Suggested changes require owner review and authorized configuration/source access. Public-response findings do not establish source-level vulnerabilities or comprehensive penetration-test coverage.
+**Ready to review** means collection and analysis completed. Website assessment does not apply a patch or declare a website safe. Suggested changes require owner review and authorized configuration/source access. Public-response findings do not establish source-level vulnerabilities or comprehensive penetration-test coverage.
 
 Only public HTTP(S) destinations on ports 80/443 are accepted; credentials, query parameters, private/reserved addresses, and unsafe redirect destinations are rejected. Collection uses normal GETs rather than exploit payloads, form submissions, credential use, or server changes. The model receives normalized observations rather than full HTML, cookie values, or credentials.
 
-Collection/provider failures remain `FAILED`, with any partial observations and a clear error. No fixture observation, cached example, or simulated AI result replaces failed live work. Use **Assess this URL again** for a fresh assessment. Reports belong to the browser's operator session; restarting the controller invalidates that session.
+Collection/provider failures remain `FAILED`, with any partial observations and a clear error. No fixture observation, cached example, or simulated AI result replaces failed live work. Use **Check again** for fresh evidence. Reports belong to the browser's operator session; restarting the controller invalidates that session.
+
+The interface uses system fonts, CSS depth, and reduced-motion-aware transitions without 3D libraries or external assets. Idle/completed scans stop polling; active refreshes update the store once and skip unchanged reports. See the [focused UI contract](docs/design/intuitive-workspace.md).
 
 See the [demo guide](docs/demo/demo-script.md) for the one-site walkthrough. The guide records a completed 2026-10-24 browser/Anthropic assessment of the public sample, with its actual response fingerprint and provider metadata, separately from test-double checks.
 

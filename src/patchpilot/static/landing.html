@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Assess a real public website, inspect fresh HTTP evidence, and get Anthropic remediation guidance with clear coverage and limitations.">
-    <meta name="theme-color" content="#ffffff">
-    <title>PatchPilot — Real websites. Recorded evidence.</title>
+    <meta name="description" content="Enter a public website URL. Inspect fresh HTTP evidence and get practical Anthropic fix suggestions, with clear coverage and limitations.">
+    <meta name="theme-color" content="#f6f7f2">
+    <title>PatchPilot — Your website. Made clearer.</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/static/design.css">
     <link rel="stylesheet" href="/static/landing.css">
@@ -14,78 +14,70 @@
 <body class="landing" data-page="landing">
     <a class="lp-skip" href="#content">Skip to content</a>
     <header class="lp-header">
-        <nav class="lp-nav" aria-label="Main navigation">
+        <nav class="lp-nav lp-container" aria-label="Main navigation">
             <a class="wordmark" href="/" aria-label="PatchPilot home"><img src="/static/favicon.svg" width="30" height="30" alt=""><span>PatchPilot</span></a>
-            <div class="lp-nav-links"><a href="#workflow">How it works</a><a href="#verification">Verification</a><a href="#faq">Questions</a></div>
+            <div class="lp-nav-links"><a href="#workflow">How it works</a><a href="#faq">Questions</a></div>
             <a class="btn btn--primary lp-nav-cta" href="/dashboard">Open dashboard <span aria-hidden="true">↗</span></a>
         </nav>
     </header>
+
     <main id="content" tabindex="-1">
         <section class="lp-hero lp-container" aria-labelledby="hero-title">
-            <p class="eyebrow">LIVE WEBSITE ASSESSMENT</p>
-            <h1 id="hero-title">A real website.<br>A clearer next step.</h1>
-            <p class="lp-hero-copy">Enter a public URL. Collect fresh HTTP evidence.<br class="lp-wide-break"> Get Anthropic guidance tied to what was observed.</p>
-            <div class="lp-actions"><a class="btn btn--primary" href="/dashboard">Open dashboard <span aria-hidden="true">→</span></a><a class="btn btn--secondary" href="/dashboard?mock=1#/fleet">Explore repair lab simulation</a></div>
-            <p class="lp-hero-note">Public HTTP responses <span aria-hidden="true">·</span> Evidence-linked findings <span aria-hidden="true">·</span> AI remediation guidance</p>
-        </section>
-
-        <section class="lp-product lp-container" aria-labelledby="preview-title">
-            <div class="lp-preview-caption"><span id="preview-title">Illustrative product preview</span><span>From public URL to actionable observations</span></div>
-            <div class="lp-window" role="img" aria-label="Illustrative assessment workflow: a public URL, fresh HTTP observations, PHP detection confidence, and evidence-linked recommendations. This is not a live result.">
-                <div class="lp-window-bar"><div class="lp-window-brand"><img src="/static/favicon.svg" width="22" height="22" alt="">PatchPilot <span class="lp-divider">/</span><span>Website assessment</span></div><span class="lp-example-label">Example · not a live result</span></div>
-                <div class="lp-preview-layout">
-                    <aside class="lp-preview-sidebar" aria-hidden="true"><span class="lp-sidebar-title">WORKSPACE</span><div class="lp-sidebar-item lp-sidebar-item--active"><span>▦</span> Website assessment</div><div class="lp-sidebar-item"><span>◷</span> Assessment activity</div><div class="lp-sidebar-item"><span>≡</span> Evidence</div><div class="lp-sidebar-bottom"><span class="lp-local-dot"></span> Read-only public HTTP</div></aside>
-                    <div class="lp-preview-main">
-                        <div class="lp-preview-heading"><div><span class="lp-small-label">PUBLIC WEBSITE · FRESH COLLECTION</span><h2>Review the website evidence</h2></div><span class="lp-neutral-pill">Public-response observations</span></div>
-                        <div class="lp-runtime-change"><div><span>Public target</span><strong>Website URL</strong><small>Normal HTTP(S) GET requests</small></div><span class="lp-change-arrow" aria-hidden="true">→</span><div><span>Evidence collection</span><strong>Fresh response</strong><small>Status, headers, body fingerprint</small></div></div>
-                        <div class="lp-mitigation"><span class="lp-preview-icon" aria-hidden="true">◇</span><div><strong>Keep the evidence connected</strong><code>URL → HTTP evidence → Anthropic guidance</code></div><span class="lp-small-label">REQUIRED</span></div>
-                        <div class="lp-checks-heading"><h3>Observe what is available</h3><span>Coverage varies with the collected responses</span></div>
-                        <div class="lp-check-grid"><span><i></i> PHP detection confidence</span><span><i></i> HTTP response status</span><span><i></i> Security header signals</span><span><i></i> Response fingerprint</span><span><i></i> Transport information</span><span><i></i> Hardening observations</span><span><i></i> Source-access limitations</span></div>
-                        <div class="lp-preview-footer"><span>Observed, inferred, and unknown stay distinct.</span><span class="lp-illustrative-button">Collect → analyze → review</span></div>
-                    </div>
-                </div>
+            <div class="lp-hero-copy">
+                <p class="eyebrow"><span class="lp-signal-dot" aria-hidden="true"></span> LIVE WEBSITE ASSESSMENT</p>
+                <h1 id="hero-title">Your website.<br><span>Made clearer.</span></h1>
+                <p class="lp-lead">Enter a public URL. See fresh evidence and get Anthropic fix suggestions grounded in what the site reveals.</p>
+                <div class="lp-actions"><a class="btn btn--primary lp-primary" href="/dashboard">Assess a website <span aria-hidden="true">↗</span></a><a class="lp-text-link" href="#workflow">See how it works <span aria-hidden="true">↓</span></a></div>
+                <p class="lp-hero-note"><span aria-hidden="true">↳</span> Read-only assessment. Changes stay in your hands.</p>
             </div>
-            <p class="lp-preview-footnote">Illustration only. Start an assessment to collect actual responses and request fresh analysis.</p>
+
+            <figure class="lp-art" role="img" aria-label="A three-dimensional browser, PHP signal tile, and shield representing evidence-led website assessment. Concept illustration, not a live result.">
+                <div class="lp-scene" aria-hidden="true">
+                    <div class="iso-ground"></div>
+                    <div class="iso-evidence">
+                        <span class="iso-eyebrow">HTTP EVIDENCE</span>
+                        <div class="iso-evidence-row"><span class="iso-evidence-dot"></span>Response headers</div>
+                        <div class="iso-evidence-row"><span class="iso-evidence-dot"></span>Transport signals</div>
+                        <div class="iso-evidence-row"><span class="iso-evidence-dot"></span>PHP confidence</div>
+                        <div class="iso-sheet-line"></div><div class="iso-sheet-line iso-sheet-line--short"></div>
+                    </div>
+                    <div class="iso-browser">
+                        <div class="iso-browser-bar"><span></span><span></span><span></span><div>PUBLIC WEBSITE</div></div>
+                        <div class="iso-browser-body"><span class="iso-code-mark">&lt;/&gt;</span><div class="iso-browser-title">A page worth<br>understanding.</div><div class="iso-browser-rule"></div><div class="iso-browser-rule iso-browser-rule--short"></div><span class="iso-browser-chip">Live HTTP response</span></div>
+                    </div>
+                    <div class="iso-php"><span>php</span><i>&lt;?&gt;</i></div>
+                    <div class="iso-shield"><div class="iso-shield-face"><span>✓</span></div></div>
+                    <div class="iso-guidance"><span class="iso-guidance-symbol">✳</span><div><strong>From signals to next steps</strong><span>Anthropic fix guidance</span></div></div>
+                    <span class="iso-orbit-dot iso-orbit-dot--one"></span><span class="iso-orbit-dot iso-orbit-dot--two"></span>
+                </div>
+                <figcaption>Concept illustration · every assessment collects fresh evidence.</figcaption>
+            </figure>
         </section>
 
-        <section class="lp-workflow lp-section lp-container" id="workflow" aria-labelledby="workflow-title">
-            <div class="lp-section-intro"><p class="eyebrow">FROM URL TO NEXT STEPS</p><h2 id="workflow-title">Start with the website.<br>Follow the evidence.</h2><p>Fresh collection and practical guidance, with the limits stated plainly.</p></div>
+        <section class="lp-workflow lp-container" id="workflow" aria-labelledby="workflow-title">
+            <div class="lp-section-heading"><p class="eyebrow">A SIMPLE PATH FORWARD</p><h2 id="workflow-title">One URL. Three clear steps.</h2></div>
             <ol class="lp-steps">
-                <li><span class="lp-step-number">01</span><h3>Enter a public URL</h3><p>Choose a public HTTP(S) page. Public sample links fill the form; every assessment collects new responses.</p></li>
-                <li><span class="lp-step-number">02</span><h3>Collect fresh observations</h3><p>Record status, timing, response fingerprints, and security signals through normal, bounded GET requests.</p></li>
-                <li><span class="lp-step-number">03</span><h3>Review evidence-linked fixes</h3><p>Read the findings and Anthropic recommendations. Review suggested configuration or code with access to your server.</p></li>
+                <li><span class="lp-step-number" aria-hidden="true">01</span><h3>Start with your URL</h3><p>Choose a public page. PatchPilot collects fresh responses through normal HTTP requests.</p></li>
+                <li><span class="lp-step-number" aria-hidden="true">02</span><h3>Follow the evidence</h3><p>Inspect PHP signals, response headers, and transport observations—with their confidence and limits.</p></li>
+                <li><span class="lp-step-number" aria-hidden="true">03</span><h3>Review the next steps</h3><p>Get Anthropic fix suggestions and verification steps. You decide what to apply.</p></li>
             </ol>
         </section>
 
-        <section class="lp-feature-band" id="verification" aria-labelledby="verification-title">
-            <div class="lp-feature lp-container">
-                <div class="lp-feature-copy"><p class="eyebrow">OBSERVATIONS YOU CAN INSPECT</p><h2 id="verification-title">Inspect the signals.<br>Understand the limits.</h2><p>A public response can reveal useful security signals. PatchPilot records what was observed and distinguishes a reported PHP version from an inference or an unknown.</p><ul class="lp-feature-list"><li>Fresh status, response size, timing, and body SHA-256</li><li>Findings connected to recorded evidence IDs</li><li>Explicit coverage, uncertainty, and further checks</li></ul><a class="lp-text-link" href="/dashboard">Assess a public website <span aria-hidden="true">→</span></a></div>
-                <div class="lp-verification-diagram" aria-label="Assessment workflow: validate a public URL, collect fresh responses, then analyze the recorded evidence.">
-                    <div class="lp-diagram-title"><span class="lp-small-label">THE ASSESSMENT WORKFLOW</span><span class="lp-neutral-pill">Fresh observations</span></div>
-                    <div class="lp-diagram-step"><span class="lp-diagram-symbol">1</span><div><strong>Validate the public URL</strong><p>Check the destination and every redirect.</p></div></div><div class="lp-diagram-line" aria-hidden="true"></div>
-                    <div class="lp-diagram-step lp-diagram-step--blue"><span class="lp-diagram-symbol">2</span><div><strong>Collect HTTP evidence</strong><p>Record observable responses with bounded reads.</p></div></div><div class="lp-diagram-line" aria-hidden="true"></div>
-                    <div class="lp-diagram-step"><span class="lp-diagram-symbol">3</span><div><strong>Request Anthropic guidance</strong><p>Tie findings and suggested fixes to the evidence.</p></div></div>
-                    <p class="lp-diagram-note">Partial evidence is retained when collection or analysis fails. Installed patch status and source-level issues require more access.</p>
-                </div>
+        <section class="lp-scope" id="verification" aria-labelledby="scope-title">
+            <div class="lp-container lp-scope-inner"><div><p class="eyebrow">USEFUL SIGNALS. HONEST LIMITS.</p><h2 id="scope-title">Evidence, before assumptions.</h2></div><p>Public responses reveal useful clues. They cannot confirm installed patch status or source-level vulnerabilities. Every report keeps those limits visible.</p></div>
+        </section>
+
+        <section class="lp-faq lp-container" id="faq" aria-labelledby="faq-title">
+            <div class="lp-faq-intro"><p class="eyebrow">A FEW THINGS TO KNOW</p><h2 id="faq-title">Clear from<br> the start.</h2><a class="lp-text-link" href="/dashboard">Open dashboard <span aria-hidden="true">↗</span></a></div>
+            <div class="lp-faq-list">
+                <details><summary>Which websites can I assess?</summary><p>Public HTTP(S) pages on ports 80 or 443, without credentials or query parameters. Private and reserved destinations are excluded.</p></details>
+                <details><summary>Will it change my website?</summary><p>No. It collects public responses and suggests fixes. Applying a change requires your review and authorized access to your server or code.</p></details>
+                <details><summary>Does a completed assessment mean my site is safe?</summary><p>No. This is a public-response assessment, not a full security audit. Findings distinguish observed evidence, inference, and unknowns. Source and authenticated flows require further review.</p></details>
+                <details><summary>Where is the repair lab?</summary><p>The separate lab demonstrates controlled local PHP fixture repairs, with its own approval and verification workflow. Its simulation does not operate real websites.</p></details>
             </div>
         </section>
-
-        <section class="lp-feature lp-section lp-container" aria-labelledby="evidence-title">
-            <div class="lp-evidence-preview"><div class="lp-evidence-top"><span class="lp-small-label">A READABLE ASSESSMENT RECORD</span><span class="lp-preview-icon" aria-hidden="true">≡</span></div><h3>What was seen. What comes next.</h3><p>Report states and confidence</p><div class="lp-outcome lp-outcome--verified"><span aria-hidden="true">✓</span><div><strong>Assessment completed</strong><small>Collected responses and analysis are recorded.</small></div></div><div class="lp-outcome"><span aria-hidden="true">×</span><div><strong>Partial evidence retained</strong><small>A network or provider failure stays visible.</small></div></div><div class="lp-outcome"><span aria-hidden="true">↶</span><div><strong>PHP version unknown</strong><small>Public responses may not disclose PHP.</small></div></div><span class="lp-example-label">Illustrative report guide</span></div>
-            <div class="lp-feature-copy"><p class="eyebrow">PRACTICAL GUIDANCE, GROUNDED IN EVIDENCE</p><h2 id="evidence-title">A useful finding.<br>With its source attached.</h2><p>Start with the findings and remediation guidance. Open a linked observation to inspect the response detail, timestamp, and confidence behind it.</p><p>Anthropic suggestions include configuration or code, verification steps, and access requirements. You review and apply changes in your own environment.</p><a class="lp-text-link" href="/dashboard?mock=1#/fleet">Explore the separate repair lab simulation <span aria-hidden="true">→</span></a></div>
-        </section>
-
-        <section class="lp-faq-band" id="faq" aria-labelledby="faq-title">
-            <div class="lp-faq lp-container"><div class="lp-faq-intro"><p class="eyebrow">SCOPE, WITHOUT GUESSWORK</p><h2 id="faq-title">A focused prototype.<br>A clear boundary.</h2><p>Public HTTP observation comes first. The separate repair lab demonstrates controlled deployment changes on local fixtures.</p></div><div class="lp-faq-list">
-                <details><summary>Which websites can I assess?</summary><p>Enter a public HTTP(S) URL on port 80 or 443, without credentials or query parameters. Private and reserved destinations are excluded. The server validates the destination and redirects.</p></details>
-                <details><summary>Does assessment change the website?</summary><p>Website assessment collects normal public HTTP responses and suggests remediation. Applying configuration or code requires your review and authorized access to the server. The separate repair lab has its own approval workflow.</p></details>
-                <details><summary>How are findings supported?</summary><p>Findings link to timestamped observations. Reports retain response metadata and hashes, PHP detection confidence, analysis provenance, coverage, and limitations. A completed assessment is not a declaration that a website is safe.</p></details>
-                <details><summary>What is the repair lab simulation?</summary><p>The separate lab plays a clearly labeled example of a controlled PHP fixture repair, including approval, verification, and recovery. Live website assessments always collect their own public response evidence.</p></details>
-            </div></div>
-        </section>
-
-        <section class="lp-final-cta lp-container" aria-labelledby="cta-title"><p class="eyebrow">YOUR WEBSITE, WITH FRESH OBSERVATIONS</p><h2 id="cta-title">Start with a URL.<br>Keep the evidence.</h2><p>Assess a real public website and review practical next steps tied to its responses.</p><div class="lp-actions"><a class="btn btn--primary" href="/dashboard">Open dashboard <span aria-hidden="true">→</span></a><a class="btn btn--secondary" href="/dashboard?mock=1#/fleet">Explore repair lab simulation</a></div></section>
     </main>
-    <footer class="lp-footer"><div class="lp-container lp-footer-inner"><a class="wordmark" href="/" aria-label="PatchPilot home"><img src="/static/favicon.svg" width="26" height="26" alt=""><span>PatchPilot</span></a><span>Fresh HTTP evidence. Clear coverage. Practical guidance.</span><a href="/dashboard">Open dashboard <span aria-hidden="true">↗</span></a></div></footer>
+
+    <footer class="lp-footer lp-container"><a class="wordmark" href="/" aria-label="PatchPilot home"><img src="/static/favicon.svg" width="26" height="26" alt=""><span>PatchPilot</span></a><p>Fresh evidence. A clearer next move.</p><a href="/dashboard?mock=1#/fleet">Explore repair lab simulation <span aria-hidden="true">↗</span></a></footer>
 </body>
 </html>

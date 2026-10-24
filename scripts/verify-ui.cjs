@@ -9,7 +9,9 @@
  * AXE_MODULE=/absolute/path/to/node_modules/axe-core (optional)
  *
  * The only dependency is Playwright, installed outside this repository if needed.
- * All workflow mutations use ?mock=1; the network guard blocks every HTTP write.
+ * Repair mutations use ?mock=1. Website states use intercepted API responses;
+ * their synthetic POST is fulfilled in this browser and never reaches the API.
+ * The network guard blocks every other HTTP write and every external request.
  */
 
 "use strict";
@@ -40,6 +42,8 @@ const pageErrors = [];
 const consoleErrors = [];
 const externalRequests = [];
 const blockedWrites = [];
+const interceptedWrites = [];
+const performanceSamples = [];
 const widths = [320, 768, 1024, 1440];
 const pollWindowMs = 4500;
 let browser;
@@ -79,8 +83,23 @@ async function check(name, operation, page = null) {
     }
 }
 
-async function newPage() {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
+async function newPage(options = {}) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: options.reducedMotion || "reduce" });
+    await context.addInitScript(() => {
+        window.__patchpilotQaPerf = { mainReplacements: 0, mutationRecords: 0, longTasks: [] };
+        new MutationObserver(records => {
+            const performance = window.__patchpilotQaPerf;
+            for (const record of records) {
+                if (record.target.id === "app-main" && record.removedNodes.length) performance.mainReplacements += 1;
+                if (record.target.id === "app-main" || record.target.closest?.("#app-main")) performance.mutationRecords += 1;
+            }
+        }).observe(document, { childList: true, subtree: true });
+        if (PerformanceObserver.supportedEntryTypes.includes("longtask")) {
+            new PerformanceObserver(list => {
+                window.__patchpilotQaPerf.longTasks.push(...list.getEntries().map(entry => Math.round(entry.duration)));
+            }).observe({ type: "longtask", buffered: true });
+        }
+    });
     const requests = [];
     context.on("request", request => requests.push({ url: request.url(), method: request.method() }));
     await context.route("**/*", async route => {
@@ -90,6 +109,14 @@ async function newPage() {
         if (target.origin !== origin) {
             externalRequests.push({ url: target.href, method: request.method() });
             return route.abort("blockedbyclient");
+        }
+        const intercepted = await options.intercept?.(request, target);
+        if (intercepted) {
+            if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) {
+                interceptedWrites.push({ path: target.pathname, method: request.method() });
+            }
+            return route.fulfill({ status: intercepted.status ?? 200, contentType: "application/json",
+                body: JSON.stringify(intercepted.json) });
         }
         if (!["GET", "HEAD", "OPTIONS"].includes(request.method())) {
             blockedWrites.push({ path: target.pathname, method: request.method() });
@@ -104,6 +131,195 @@ async function newPage() {
         if (message.type() === "error") consoleErrors.push(message.text());
     });
     return { context, page, requests };
+}
+
+function websiteReport(state = "COMPLETED") {
+    const timestamp = "2026-10-24T12:00:00Z";
+    const url = "https://example.org/public/index.php";
+    const titles = ["PHP version banner is publicly visible", "HTTP transport needs review", "Content policy is absent",
+        "Framing policy is absent", "Content type protection is absent", "Response text is safely escaped"];
+    const evidence = titles.map((title, index) => ({ evidenceId: `e${index + 1}`, url, kind: "HTTP_HEADER",
+        label: title, observed: index === 5 ? '<img src=x onerror="globalThis.__patchpilotXss=1"> & <script>globalThis.__patchpilotXss=1</script>'
+            : `${title}: actual browser QA response fixture; no target was contacted. ${"bounded evidence ".repeat(8)}`,
+        collectedAt: timestamp }));
+    const findings = titles.map((title, index) => ({ findingId: `finding-${index + 1}`, title,
+        severity: index < 2 ? "high" : index < 4 ? "medium" : "low", confidence: "OBSERVED",
+        description: `Browser-intercepted QA observation ${index + 1}; this is not a real website assessment.`,
+        evidenceIds: [`e${index + 1}`], recommendation: "Review the recorded response and apply an authorized configuration change.",
+        references: index === 5 ? ["javascript:globalThis.__patchpilotXss=1", "https://www.php.net/"] : ["https://www.php.net/"] }));
+    const active = ["QUEUED", "COLLECTING", "ANALYZING"].includes(state);
+    return { assessmentId: "qa-website-completed", url, state, createdAt: timestamp,
+        finishedAt: active ? null : "2026-10-24T12:00:10Z",
+        stageMessage: active ? "Browser QA: analyzing intercepted evidence; no model or website request was sent."
+            : state === "FAILED" ? "Browser QA: provider unavailable; partial HTTP evidence retained."
+                : "Browser QA: recorded evidence and synthetic guidance are ready for review.",
+        responses: [{ url, status: 200, elapsedMs: 121, bodySha256: "a".repeat(64), bytesRead: 136,
+            truncated: false, tlsProtocol: "TLSv1.3", headerNames: ["content-type", "x-powered-by"] }],
+        evidence: active ? evidence.slice(0, 1) : evidence,
+        phpDetection: { status: "REPORTED", version: "5.2.6", explanation: "The intercepted response fixture reports PHP/5.2.6; installed patch status is unknown.", evidenceIds: ["e1"] },
+        findings: active ? [] : findings,
+        analysis: state === "COMPLETED" ? { source: "ANTHROPIC", modelId: "qa-intercepted-model",
+            providerMessageId: "qa-no-provider-call", inputTokens: 2787, outputTokens: 1253,
+            summary: "Synthetic browser QA guidance: review the evidence before any server-side change.",
+            recommendations: findings.slice(0, 3).map((finding, index) => ({ findingId: finding.findingId,
+                explanation: `Review ${finding.title.toLowerCase()} with authorized server access.`,
+                steps: ["Record the original configuration.", "Apply the reviewed change in a separate environment.", "Repeat the original HTTP observation."],
+                code: index === 2 ? '<script>globalThis.__patchpilotXss=1</script>\n' + "x".repeat(240)
+                    : `# QA example only\nHeader always set X-QA-Review \"required\"\n${"# long unbroken line ".repeat(12)}`,
+                verification: "Compare fresh response evidence after an authorized change; do not infer a verified repair from this report.",
+                requiresServerAccess: true })), furtherChecks: ["Inspect installed package and backport status with authorized server access."] } : null,
+        coverage: ["One bounded public GET and its redirect chain; browser QA interception only."],
+        limitations: ["No authenticated pages, source code, server package metadata, active payloads, or exploit testing.",
+            "An assessment is not a verified repair or a declaration that a website is safe."],
+        events: Array.from({ length: 10 }, (_, index) => ({ sequence: index + 1, timestamp,
+            stage: index < 2 ? "COLLECTING" : active ? state : index === 9 ? state : "ANALYZING",
+            message: `Browser QA recorded activity ${index + 1}; no network probe or provider call.` })),
+        error: state === "FAILED" ? "The analysis provider was unavailable. Collected HTTP evidence remains available." : null };
+}
+
+function websiteInterception() {
+    const fixture = { report: null, posts: [], reads: [], responseBytes: 0, delayMs: 0, advanceActive: false, revision: 0 };
+    fixture.intercept = async (request, target) => {
+        if (target.pathname === "/api/session" && request.method() === "GET") return { json: { csrfToken: "qa-browser-local-token" } };
+        if (!target.pathname.startsWith("/api/website-assessments")) return null;
+        let json;
+        if (request.method() === "POST" && target.pathname === "/api/website-assessments") {
+            assert.equal(request.headers()["x-csrf-token"], "qa-browser-local-token", "Synthetic create must retain CSRF protection");
+            const body = request.postDataJSON();
+            assert.deepEqual(body, { url: "https://example.org/public/index.php" });
+            fixture.posts.push(body);
+            fixture.report = websiteReport("ANALYZING");
+            json = { assessmentId: fixture.report.assessmentId };
+        } else if (request.method() === "GET") {
+            fixture.reads.push(target.pathname);
+            if (target.pathname === "/api/website-assessments/examples") {
+                json = { items: [{ id: "invicti", title: "Invicti PHP test site", url: "http://php.testsparker.com/", description: "Public sample; filling does not start an assessment." }] };
+            } else if (target.pathname === "/api/website-assessments") {
+                json = { items: fixture.report ? [fixture.report] : [] };
+            } else {
+                assert.equal(target.pathname, "/api/website-assessments/qa-website-completed", "Unexpected synthetic assessment request");
+                assert(fixture.report, "Selected synthetic report must exist");
+                if (fixture.advanceActive && fixture.report.state === "ANALYZING") {
+                    fixture.revision += 1;
+                    fixture.report = { ...fixture.report,
+                        stageMessage: `Browser QA: analyzing intercepted evidence; update ${fixture.revision}. No provider or target request was sent.`,
+                        events: [...fixture.report.events, { sequence: 10 + fixture.revision, timestamp: "2026-10-24T12:00:01Z",
+                            stage: "ANALYZING", message: `Browser-local update ${fixture.revision}; no provider call.` }] };
+                }
+                json = fixture.report;
+            }
+        } else { return null; }
+        fixture.responseBytes += Buffer.byteLength(JSON.stringify(json));
+        if (fixture.delayMs) await new Promise(resolve => setTimeout(resolve, fixture.delayMs));
+        return { json };
+    };
+    return fixture;
+}
+
+async function websiteValidation(page, fixture) {
+    for (const value of ["not a URL", "http://127.0.0.1/", "http://192.168.1.1/", "http://[::1]/", "http://localhost/",
+        "https://user:password@example.org/", "https://example.org/?token=do-not-send", "https://example.org:8443/", "javascript:alert(1)"]) {
+        await page.locator("#website-url").fill(value);
+        await page.locator("#website-submit").click();
+        const error = page.locator("#website-url-error");
+        await error.waitFor({ state: "visible" });
+        assert.equal(await page.locator("#website-url").getAttribute("aria-invalid"), "true");
+        assert((await page.locator("#website-url").getAttribute("aria-describedby")).split(/\s+/).includes("website-url-error"));
+        assert.equal(await page.evaluate(() => document.activeElement?.id), "website-url");
+        assert.equal(fixture.posts.length, 0, "Rejected public URL must not create even an intercepted assessment");
+    }
+}
+
+async function refreshWebsiteKeepingFocus(page, fixture, focusId) {
+    const history = page.locator("#website-history");
+    if (!(await history.evaluate(element => element.open))) await history.locator(":scope > summary").press("Enter");
+    fixture.delayMs = 200;
+    const reads = fixture.reads.length;
+    try {
+        await page.locator("#website-refresh").click();
+        await page.locator(`[id=${JSON.stringify(focusId)}]`).focus();
+        await page.waitForTimeout(400);
+        assert(fixture.reads.length > reads, "Manual history refresh must read intercepted API data");
+    } finally { fixture.delayMs = 0; }
+}
+
+async function websiteDisclosureJump(page, fixture) {
+    const evidenceId = "website-evidence-qa-website-completed-e1";
+    const detail = page.locator(`[id=${JSON.stringify(evidenceId)}]`);
+    assert.equal(await detail.evaluate(element => element.open), false, "Evidence must start closed");
+    const action = page.locator("details.website-action").first();
+    if (!(await action.evaluate(element => element.open))) await action.locator(":scope > summary").press("Enter");
+    await action.getByRole("button", { name: "View evidence e1", exact: true }).click();
+    assert(await detail.evaluate(element => element.open), "Evidence jump must reveal its recorded observation");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), `${evidenceId}-summary`, "Evidence jump must move keyboard focus to the revealed summary");
+    await refreshWebsiteKeepingFocus(page, fixture, `${evidenceId}-summary`);
+    assert(await detail.evaluate(element => element.open), "Refresh collapsed the evidence opened from a finding");
+    assert.equal(await page.evaluate(() => document.activeElement?.id), `${evidenceId}-summary`, "Refresh moved focus away from linked evidence");
+    await page.keyboard.press("Enter");
+    assert.equal(await detail.evaluate(element => element.open), false, "Keyboard must close linked evidence");
+}
+
+async function performanceWindow(page, fixture, label) {
+    const before = await page.evaluate(() => ({ ...window.__patchpilotQaPerf,
+        longTasks: [...window.__patchpilotQaPerf.longTasks] }));
+    const reads = fixture.reads.length;
+    const bytes = fixture.responseBytes;
+    await page.waitForTimeout(pollWindowMs);
+    const after = await page.evaluate(() => {
+        const displayed = element => {
+            if (!element.getClientRects().length || getComputedStyle(element).visibility === "hidden") return false;
+            for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+                if (parent.tagName === "DETAILS" && !parent.open && !parent.querySelector(":scope > summary")?.contains(element)) return false;
+            }
+            return true;
+        };
+        return { ...window.__patchpilotQaPerf, nodes: document.querySelectorAll("#app-main *").length,
+            visibleNodes: [...document.querySelectorAll("#app-main *")].filter(displayed).length,
+            heapBytes: performance.memory?.usedJSHeapSize ?? null };
+    });
+    performanceSamples.push({ label, windowMs: pollWindowMs, apiReads: fixture.reads.slice(reads),
+        responseBytes: fixture.responseBytes - bytes, reportBytes: Buffer.byteLength(JSON.stringify(fixture.report)),
+        mainReplacements: after.mainReplacements - before.mainReplacements,
+        mutationRecords: after.mutationRecords - before.mutationRecords,
+        longTasksMs: after.longTasks.slice(before.longTasks.length), nodes: after.nodes,
+        visibleNodes: after.visibleNodes, heapBytes: after.heapBytes });
+    if (["website-empty", "website-completed"].includes(label)) {
+        assert.equal(fixture.reads.length - reads, 0, `${label}: idle pages must not refetch unchanged history, examples or reports`);
+        assert.equal(after.mainReplacements - before.mainReplacements, 0, `${label}: idle pages must not rebuild the report DOM`);
+    }
+}
+
+async function websiteSelectionRace() {
+    const slow = { ...websiteReport("COMPLETED"), assessmentId: "qa-slow", url: "https://example.org/slow.php" };
+    const fast = { ...websiteReport("COMPLETED"), assessmentId: "qa-fast", url: "https://example.org/fast.php",
+        phpDetection: { status: "REPORTED", version: "8.3.36", explanation: "Newly selected browser QA report.", evidenceIds: ["e1"] } };
+    let startedSlow;
+    const slowStarted = new Promise(resolve => { startedSlow = resolve; });
+    const fixture = await newPage({ intercept: async (request, target) => {
+        if (request.method() !== "GET") return null;
+        if (target.pathname === "/api/session") return { json: { csrfToken: "qa-race-token" } };
+        if (target.pathname === "/api/website-assessments") return { json: { items: [slow, fast] } };
+        if (target.pathname === "/api/website-assessments/examples") return { json: { items: [] } };
+        if (target.pathname === "/api/website-assessments/qa-slow") {
+            startedSlow();
+            await new Promise(resolve => setTimeout(resolve, 600));
+            return { json: slow };
+        }
+        if (target.pathname === "/api/website-assessments/qa-fast") return { json: fast };
+        return null;
+    } });
+    try {
+        await fixture.page.goto(`${origin}/dashboard#/scan/qa-slow`, { waitUntil: "domcontentloaded" });
+        await Promise.race([slowStarted, new Promise((_, reject) => setTimeout(() => reject(new Error("Slow report request did not start")), 5000))]);
+        await fixture.page.evaluate(() => { location.hash = "#/scan/qa-fast"; });
+        await fixture.page.waitForFunction(() => document.querySelector(".website-stat--php dd")?.textContent === "PHP 8.3.36");
+        await fixture.page.waitForTimeout(800);
+        assert.equal(new URL(fixture.page.url()).hash, "#/scan/qa-fast");
+        assert.equal(await fixture.page.locator("#website-report-heading a").getAttribute("href"), fast.url,
+            "A delayed previous request must not replace the newly selected report");
+        assert.equal(await fixture.page.locator(".website-stat--php dd").innerText(), "PHP 8.3.36");
+        await screenshot(fixture.page, "website-selection-race");
+    } finally { await fixture.context.close(); }
 }
 
 async function responsive(page, label) {
@@ -133,6 +349,7 @@ async function responsive(page, label) {
             `${label} overflows at ${width}px: ${JSON.stringify(overflow)}`);
         assert.deepEqual(overflow.narrowColumns, [], `${label}: verification columns are unreadable at ${width}px`);
         assert.deepEqual(overflow.inaccessibleScroll, [], `${label}: scrolling tables must be named and keyboard focusable at ${width}px`);
+        if (width === 320 && label.startsWith("website-")) await accessibility(page, `${label}-320`);
         await screenshot(page, `${label}-${width}`);
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -173,6 +390,7 @@ async function accessibility(page, label) {
 
 async function keyboardSkip(page) {
     await page.goto(page.url(), { waitUntil: "networkidle" });
+    const route = new URL(page.url()).hash;
     await page.keyboard.press("Tab");
     const target = await page.evaluate(() => {
         const element = document.activeElement;
@@ -182,6 +400,10 @@ async function keyboardSkip(page) {
     assert(target.href?.startsWith("#"), "Skip link must target this page");
     await page.keyboard.press("Enter");
     assert.equal(await page.evaluate(() => document.activeElement?.id), target.href.slice(1), "Skip link must focus the main target");
+    if (new URL(page.url()).pathname === "/dashboard") {
+        await page.waitForTimeout(100);
+        assert.equal(new URL(page.url()).hash, route, "Skipping to dashboard content must preserve the current assessment or lab route");
+    }
 }
 
 async function mockReady(page, scenario = null) {
@@ -318,6 +540,8 @@ async function main() {
         }, landing.page);
         await check("walkthrough navigation", async () => {
             await landing.page.goto(`${origin}/`, { waitUntil: "networkidle" });
+            const lab = landing.page.locator("#faq details").filter({ hasText: "Where is the repair lab?" });
+            if (await lab.count() && !(await lab.evaluate(element => element.open))) await lab.locator(":scope > summary").press("Enter");
             await landing.page.getByRole("link", { name: "Explore repair lab simulation", exact: true }).first().click();
             await landing.page.locator("#registered-site-url").waitFor();
             assert.equal(new URL(landing.page.url()).pathname, "/dashboard");
@@ -325,11 +549,36 @@ async function main() {
         }, landing.page);
     } finally { await landing.context.close(); }
 
-    const website = await newPage();
+    const animatedLanding = await newPage({ reducedMotion: "no-preference" });
+    try {
+        await check("landing illustration completes its finite introduction", async () => {
+            await animatedLanding.page.goto(`${origin}/`, { waitUntil: "networkidle" });
+            await animatedLanding.page.evaluate(async () => {
+                await Promise.race([Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))),
+                    new Promise(resolve => setTimeout(resolve, 2000))]);
+            });
+            const running = await animatedLanding.page.evaluate(() => document.getAnimations()
+                .filter(animation => animation.playState === "running").map(animation => animation.animationName || "unnamed animation"));
+            assert.deepEqual(running, [], "Landing should settle without infinite animation");
+            for (const selector of [".iso-browser", ".iso-shield", ".iso-php"]) {
+                assert(await animatedLanding.page.locator(selector).isVisible(), `${selector} must remain visible after its introduction`);
+            }
+            await screenshot(animatedLanding.page, "landing-motion-finished-1440");
+            await animatedLanding.page.setViewportSize({ width: 320, height: 1000 });
+            await animatedLanding.page.waitForTimeout(100);
+            assert(await animatedLanding.page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1),
+                "Finished mobile illustration must not overflow the page");
+            await screenshot(animatedLanding.page, "landing-motion-finished-320");
+            assert(!animatedLanding.requests.some(request => new URL(request.url).pathname.startsWith("/api/")), "Landing illustration must not initialize the API");
+        }, animatedLanding.page);
+    } finally { await animatedLanding.context.close(); }
+
+    const websiteFixture = websiteInterception();
+    const website = await newPage({ intercept: websiteFixture.intercept });
     try {
         await check("default public website view and fill-only sample", async () => {
             await website.page.goto(`${origin}/dashboard`, { waitUntil: "networkidle" });
-            await website.page.getByRole("heading", { name: "Website assessment", exact: true }).waitFor();
+            await website.page.getByRole("heading", { name: "A safer site starts here.", exact: true }).waitFor();
             const input = website.page.locator("#website-url");
             await input.waitFor({ state: "visible" });
             assert.equal(await website.page.locator("#registered-site-url").count(), 0,
@@ -337,7 +586,7 @@ async function main() {
             assert.equal(await website.page.locator(".aside").isVisible(), false,
                 "Repair preparation controls must stay separate from website assessment");
             const before = website.requests.length;
-            await website.page.getByRole("button", { name: "Invicti PHP test site", exact: true }).click();
+            await website.page.getByRole("button", { name: "Try the PHP demo", exact: true }).click();
             assert.equal(await input.inputValue(), "http://php.testsparker.com/", "Public example should fill the real URL form");
             assert.equal(await website.page.evaluate(() => document.activeElement?.id), "website-url", "Sample selection should focus the URL field");
             await website.page.waitForTimeout(pollWindowMs);
@@ -347,11 +596,114 @@ async function main() {
                 "A sample button must not start a scan or mutation");
             assert(!website.requests.some(request => /^\/api\/(health|sites|prepare|runs)(?:\/|$)/.test(new URL(request.url).pathname)),
                 "Public assessment must not depend on fixture readiness");
+            await input.evaluate(element => { window.__qaUrlNode = element; });
+            await input.fill("https://example.org/");
+            await input.pressSequentially("guide");
+            assert(await input.evaluate(element => element === window.__qaUrlNode), "Typing must retain the actual URL input node");
+            assert.equal(await input.inputValue(), "https://example.org/guide", "Typing must retain all entered characters");
+            await performanceWindow(website.page, websiteFixture, "website-empty");
             await accessibility(website.page, "website-default");
             await responsive(website.page, "website-default");
             await keyboardSkip(website.page);
         }, website.page);
+        await check("public URL validation blocks external requests and creation", () => websiteValidation(website.page, websiteFixture), website.page);
+        await check("intercepted active website assessment is compact and responsive", async () => {
+            await website.page.locator("#website-url").fill("https://example.org/public/index.php");
+            await website.page.locator("#website-submit").click();
+            await website.page.waitForFunction(() => location.hash.includes("qa-website-completed")
+                && document.getElementById("website-agent-message")?.textContent.includes("Browser QA: analyzing"));
+            assert.equal(websiteFixture.posts.length, 1, "Exactly one browser-local assessment should be created");
+            assert(await website.page.locator("#website-submit").isDisabled(), "Active assessment must block accidental duplicate submission");
+            assert(await website.page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches), "QA must exercise reduced motion");
+            const animations = await website.page.locator(".website-spinner").evaluateAll(elements => elements.map(element => getComputedStyle(element).animationName));
+            assert(animations.every(name => name === "none"), "Progress animation must respect reduced motion");
+            const activity = website.page.locator(".website-progress .website-event-list");
+            if (await activity.count()) assert.equal(await activity.first().isVisible(), false, "Detailed active activity should start collapsed");
+            await accessibility(website.page, "website-active");
+            await responsive(website.page, "website-active");
+            websiteFixture.advanceActive = true;
+            await persistentDisclosure(website.page, ".website-progress details[id]");
+            await website.page.keyboard.press("Enter");
+            await performanceWindow(website.page, websiteFixture, "website-active");
+        }, website.page);
+        await check("completed website report uses closed evidence and recommendation disclosures", async () => {
+            websiteFixture.report = websiteReport("COMPLETED");
+            await website.page.getByText("Synthetic browser QA guidance: review the evidence before any server-side change.", { exact: true }).waitFor();
+            assert(!(await website.page.locator("#website-submit").isDisabled()), "Completion should permit another deliberate assessment");
+            const evidenceDetails = website.page.locator(".website-evidence-card");
+            assert.equal(await evidenceDetails.count(), 7, "All response/evidence records must remain available");
+            assert.deepEqual(await evidenceDetails.evaluateAll(elements => elements.filter(element => element.open).map(element => element.id)), [],
+                "HTTP metadata and individual evidence should start closed");
+            const recommendations = website.page.locator("details.website-action");
+            assert.equal(await recommendations.count(), 3, "All actionable recommendations must remain available as disclosures");
+            assert.deepEqual(await recommendations.evaluateAll(elements => elements.filter(element => element.open).map(element => element.id)), [],
+                "Code and configuration recommendations should start collapsed");
+            const another = website.page.locator("#website-new-assessment");
+            assert.equal(await another.evaluate(element => element.open), false, "The completed report should keep another URL form collapsed");
+            assert(await another.evaluate(element => Boolean(document.querySelector(".website-report")
+                .compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)), "The assessment result must precede the next-URL form");
+            assert.equal(await website.page.locator("main .outcome-banner").count(), 0, "Assessment must not be presented as a verified repair");
+            await accessibility(website.page, "website-completed");
+            await responsive(website.page, "website-completed");
+            await performanceWindow(website.page, websiteFixture, "website-completed");
+        }, website.page);
+        await check("website finding evidence jumps retain focus and disclosure state", () => websiteDisclosureJump(website.page, websiteFixture), website.page);
+        await check("website remediation retains keyboard reading state and escapes untrusted text", async () => {
+            const recommendation = website.page.locator("details.website-action").first();
+            const summary = recommendation.locator(":scope > summary");
+            const id = await recommendation.getAttribute("id");
+            assert(id, "Recommendations need stable disclosure IDs");
+            await summary.focus();
+            if (!(await recommendation.evaluate(element => element.open))) await website.page.keyboard.press("Enter");
+            assert(await recommendation.evaluate(element => element.open), "Recommendation must open from keyboard");
+            const summaryId = await summary.getAttribute("id");
+            assert(summaryId, "Recommendation summaries need persistent focus IDs");
+            await refreshWebsiteKeepingFocus(website.page, websiteFixture, summaryId);
+            assert(await recommendation.evaluate(element => element.open), "Polling collapsed the recommendation being read");
+            assert.equal(await website.page.evaluate(() => document.activeElement?.id), summaryId, "Polling moved recommendation focus");
+            const maliciousEvidence = website.page.locator("#website-evidence-qa-website-completed-e6");
+            await maliciousEvidence.locator(":scope > summary").press("Enter");
+            assert((await maliciousEvidence.innerText()).includes('<img src=x onerror="globalThis.__patchpilotXss=1">'), "Evidence must preserve literal untrusted text");
+            const codeRecommendation = website.page.locator("details.website-action").nth(2);
+            await codeRecommendation.locator(":scope > summary").press("Enter");
+            await codeRecommendation.locator(".website-code-details > summary").press("Enter");
+            assert((await codeRecommendation.locator("code").innerText()).includes("<script>globalThis.__patchpilotXss=1</script>"), "Suggested code must be text, not executable markup");
+            assert.equal(await website.page.evaluate(() => Boolean(window.__patchpilotXss)), false, "Untrusted report text executed");
+            assert.equal(await website.page.locator('main img, main script, main a[href^="javascript:"]').count(), 0,
+                "Untrusted evidence/references/code must not create active elements");
+            await accessibility(website.page, "website-expanded");
+            await responsive(website.page, "website-expanded");
+        }, website.page);
+        await check("another website draft preserves its field, focus and report", async () => {
+            await website.page.locator("#website-new-assessment-summary").press("Enter");
+            const input = website.page.locator("#website-url");
+            await input.evaluate(element => { window.__qaReportUrlNode = element; });
+            await input.fill("https://example.org/draft");
+            await input.pressSequentially("-page.php");
+            await website.page.waitForTimeout(pollWindowMs);
+            assert.equal(await input.inputValue(), "https://example.org/draft-page.php", "A next-assessment draft must survive idle time");
+            assert(await input.evaluate(element => element === window.__qaReportUrlNode), "Typing must retain the report's URL field node");
+            assert.equal(await website.page.evaluate(() => document.activeElement?.id), "website-url", "Drafting must retain keyboard focus");
+            assert.equal(await website.page.locator("#website-report-heading a").getAttribute("href"), "https://example.org/public/index.php",
+                "Typing another URL must not change the recorded report's source");
+            assert.equal(websiteFixture.posts.length, 1, "Drafting another URL must not start an assessment");
+            await website.page.locator("#website-new-assessment-summary").press("Enter");
+        }, website.page);
+        await check("failed website assessment retains partial observations without fabricated analysis", async () => {
+            websiteFixture.report = websiteReport("FAILED");
+            await website.page.reload({ waitUntil: "networkidle" });
+            await website.page.getByRole("alert").filter({ hasText: "Browser QA: provider unavailable" }).waitFor({ timeout: 15000 });
+            await website.page.getByText(/AI recommendations aren't available/i).waitFor();
+            assert.equal(await website.page.locator(".website-evidence-card").count(), 7, "Failure must retain collected HTTP evidence");
+            assert.equal(await website.page.locator("details.website-action").count(), 0, "Failure must not substitute precomputed model advice");
+            assert.equal(await website.page.locator(".website-stat--php dd").innerText(), "PHP 5.2.6", "Partial observed PHP evidence must remain readable");
+            assert(!(await website.page.locator("#website-submit").isDisabled()), "A failed assessment must not leave submission permanently disabled");
+            await accessibility(website.page, "website-failed");
+            await responsive(website.page, "website-failed");
+        }, website.page);
     } finally { await website.context.close(); }
+
+    await check("website report navigation ignores a delayed previous selection", websiteSelectionRace);
 
     const compatibility = await newPage();
     try {
@@ -490,7 +842,8 @@ async function main() {
     });
     const failed = results.filter(result => !result.passed);
     console.log(JSON.stringify({ url: origin, passed: results.length - failed.length, failed: failed.length,
-        axe: axeSource ? "enabled" : "optional module unavailable; semantic checks ran", screenshots, results }, null, 2));
+        axe: axeSource ? "enabled" : "optional module unavailable; semantic checks ran", screenshots,
+        interceptedWrites, performanceSamples, results }, null, 2));
     process.exitCode = failed.length ? 1 : 0;
 }
 
