@@ -195,7 +195,10 @@ def test_contents_api_symlink_resolution_cannot_bypass_pinned_regular_file_mode(
         "http://github.com/o/r",
         "https://github.com@evil.example/o/r",
         "https://github.com/o/r?token=PRIVATE",
-        "https://github.com/o/r/tree/main",
+        "https://github.com/o/r/blob/main/file.php",
+        "https://github.com/o/r/tree/",
+        "https://github.com:invalid/o/r",
+        "https://github.com/o/r/tree/main?token=PRIVATE",
         "https://127.0.0.1/o/r",
         "https://github.com/o/..",
     ],
@@ -207,3 +210,8 @@ def test_repository_url_must_be_an_exact_public_github_repository(url):
 
 def test_repository_git_suffix_is_normalized():
     assert repository_name("https://github.com/owner/site.git") == "owner/site"
+
+
+@pytest.mark.parametrize("suffix", ["/tree/main", "/tree/feature/contact-fix", "/tree/main/"])
+def test_browser_branch_links_normalize_to_repository_without_selecting_a_branch(suffix):
+    assert repository_name("https://github.com/owner/site" + suffix) == "owner/site"

@@ -6,10 +6,10 @@ export function validateRepositoryUrl(value) {
     let url;
     try { url = new URL(String(value).trim()); } catch { throw new Error("Enter a GitHub repository URL, such as https://github.com/owner/repository."); }
     if (url.protocol !== "https:" || url.hostname !== "github.com" || url.port || url.username || url.password || url.search || url.hash
-        || !/^\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+\/?$/.test(url.pathname)) {
-        throw new Error("Use an HTTPS github.com repository URL without credentials, query parameters, or extra paths.");
+        || !/^\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+(?:\/tree\/[^/]+(?:\/[^/]+)*)?\/?$/.test(url.pathname)) {
+        throw new Error("Use an HTTPS github.com repository URL or /tree/branch link, without credentials or query parameters.");
     }
-    const path = url.pathname.replace(/\/$/, "").replace(/\.git$/, "");
+    const path = url.pathname.split("/").slice(0, 3).join("/").replace(/\.git$/, "");
     if (!path.split("/")[2]) { throw new Error("Enter the complete GitHub repository URL."); }
     return `https://github.com${path}`;
 }
@@ -40,6 +40,6 @@ export function safePullRequestUrl(report) {
     try {
         const url = new URL(report.pullRequest?.url);
         return url.protocol === "https:" && url.hostname === "github.com" && !url.username && !url.password && !url.port
-            && url.pathname === `/${report.repository}/pull/${report.pullRequest.number}` && !url.search && !url.hash ? url.href : null;
+            && url.pathname.toLowerCase() === `/${report.repository}/pull/${report.pullRequest.number}`.toLowerCase() && !url.search && !url.hash ? url.href : null;
     } catch { return null; }
 }

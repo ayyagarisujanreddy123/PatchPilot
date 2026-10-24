@@ -40,6 +40,8 @@ The interface uses system fonts, CSS depth, and reduced-motion-aware transitions
 
 See the [demo guide](docs/demo/demo-script.md) for the one-site walkthrough. The guide records a completed 2026-10-24 browser/Anthropic assessment of the public sample, with its actual response fingerprint and provider metadata, separately from test-double checks.
 
+Choose from the [four demo websites and their supported assessment or repair flows](docs/demo/demo-sites.md).
+
 ## Connect a repository and prepare a tested fix
 
 After a completed public assessment, expand **Connect your GitHub repository**.

@@ -26,13 +26,20 @@ export function repositoryConnectForm(snapshot, assessmentId, data, handlers) {
     const draft = snapshot.ui.repositoryDrafts[assessmentId] ?? {};
     const status = snapshot.repositoryGitHubStatus;
     const sample = (snapshot.websiteExamples ?? []).find((item) => item.url === snapshot.websiteReports[assessmentId]?.url);
+    const connectedDemo = (snapshot.websiteExamples ?? []).find((item) => item.connectionSupport === "CONNECTED" || item.repositoryUrl);
+    const assessmentOnly = sample?.connectionSupport === "ASSESSMENT_ONLY" || (sample && !sample.repositoryUrl);
     const busy = Boolean(data.busyAction);
     const input = el("input", { id: "repository-url", attrs: { type: "url", required: "required", maxlength: 2048, placeholder: "https://github.com/owner/repository", autocomplete: "url", spellcheck: "false", value: draft.url ?? sample?.repositoryUrl ?? "", "aria-describedby": "repository-url-hint", disabled: busy ? "disabled" : undefined } });
     input.addEventListener("input", () => handlers.onDraft(assessmentId, { url: input.value }));
     const form = el("form", { id: "repository-connect-form", className: "repository-repair__form" }, [
         el("p", { id: "repository-github-status", className: "repository-repair__account", attrs: { role: "status" } }, !status ? "Checking GitHub authentication on this computer…" : status.available ? `GitHub account on this computer${status.login ? `: ${status.login}` : " is available"}. ${status.message}` : status.message),
         el("label", { attrs: { for: "repository-url" } }, "GitHub repository URL"), input,
-        el("p", { id: "repository-url-hint", className: "muted" }, "Connect a repository you can push to. The website marker must match its current default branch commit."),
+        el("p", { id: "repository-url-hint", className: "muted" }, "Repository URLs and /tree/branch links work. PatchPilot uses the current default branch commit, regardless of the link's branch."),
+        el("div", { className: "repository-repair__account", id: "repository-identity-help" }, [
+            el("p", {}, `${assessmentOnly ? "This sample supports website assessment only. " : ""}Match the website and repository. Connecting requires push access and a matching deployment marker; an unrelated repository cannot repair this website.`),
+            connectedDemo && sample?.connectionSupport !== "CONNECTED" && !sample?.repositoryUrl ? el("div", {}, [el("p", {}, "For the full workflow, use the connected PHP demo."),
+                el("button", { className: "btn btn--secondary btn--small", id: "repository-use-connected-demo", attrs: { type: "button" } }, "Use connected PHP demo")]) : null,
+        ]),
         el("fieldset", { attrs: { disabled: busy ? "disabled" : undefined } }, [el("legend", {}, "Business checks to preserve"),
             capability("repository-homepage", "Homepage (required)", true, true, () => {}),
             capability("repository-contact", "Contact submission", draft.contact !== false, false, (contact) => handlers.onDraft(assessmentId, { contact })),
@@ -42,5 +49,6 @@ export function repositoryConnectForm(snapshot, assessmentId, data, handlers) {
         el("button", { className: "btn btn--secondary", id: "repository-connect", attrs: { type: "submit", disabled: busy || !status?.available ? "disabled" : undefined } }, data.busyAction === "connect" ? "Connecting…" : "Connect repository"),
     ]);
     form.addEventListener("submit", (event) => { event.preventDefault(); handlers.onDraft(assessmentId, { url: input.value }); handlers.onConnect(assessmentId); });
+    form.querySelector("#repository-use-connected-demo")?.addEventListener("click", () => handlers.onUseConnectedDemo(connectedDemo.url));
     return form;
 }

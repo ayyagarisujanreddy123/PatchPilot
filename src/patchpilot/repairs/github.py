@@ -23,7 +23,11 @@ SHA = re.compile(r"[a-f0-9]{40}")
 
 
 def repository_name(value: str) -> str:
-    parsed = urlsplit(value.strip())
+    try:
+        parsed = urlsplit(value.strip())
+        port = parsed.port
+    except ValueError:
+        raise ConnectedRepairError("Use a valid HTTPS GitHub repository URL.") from None
     if (
         parsed.scheme != "https"
         or parsed.hostname != "github.com"
@@ -31,15 +35,23 @@ def repository_name(value: str) -> str:
         or parsed.password
         or parsed.query
         or parsed.fragment
-        or parsed.port not in {None, 443}
+        or port not in {None, 443}
     ):
         raise ConnectedRepairError(
             "Use a GitHub repository URL such as https://github.com/owner/repository."
         )
     parts = parsed.path.strip("/").split("/")
+    if (
+        len(parts) >= 4
+        and parts[2] == "tree"
+        and all(part not in {"", ".", ".."} for part in parts)
+    ):
+        # Browser branch links identify the repository; repairs still pin its
+        # authoritative default-branch/deployment commit, never this URL suffix.
+        parts = parts[:2]
     if len(parts) != 2:
         raise ConnectedRepairError(
-            "Choose the repository home URL, without a branch or file path."
+            "Choose a repository home URL or its GitHub branch page, such as /tree/main."
         )
     owner, repo = parts
     repo = repo.removesuffix(".git")

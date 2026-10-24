@@ -89,6 +89,14 @@ async function action(id, kind, work) {
 }
 
 export const repositoryRepairHandlers = {
+    onUseConnectedDemo: (websiteUrl) => {
+        patchUi({ websiteUrl, websiteError: null });
+        globalThis.requestAnimationFrame?.(() => {
+            const form = document.getElementById("website-new-assessment");
+            if (form) { form.open = true; }
+            document.getElementById("website-url")?.focus();
+        });
+    },
     onDraft: (id, partial) => {
         const drafts = getState().ui.repositoryDrafts;
         patchUi({ repositoryDrafts: { ...drafts, [id]: { ...drafts[id], ...partial } } }, { render: false });

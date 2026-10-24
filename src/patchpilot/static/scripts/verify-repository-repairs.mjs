@@ -4,7 +4,9 @@ import { validateRepositoryUrl, validateRepositoryRepair, hasPublishableProof, s
 import { getState, patchState, patchUi, subscribe } from "../js/state.js";
 
 assert.equal(validateRepositoryUrl(" https://github.com/owner/site.git "), "https://github.com/owner/site");
-for (const value of ["http://github.com/owner/site", "https://github.com/owner/site/tree/main", "https://user:token@github.com/owner/site", "https://github.com/owner/site?token=x", "https://evil.example/owner/site", "javascript:alert(1)"]) {
+assert.equal(validateRepositoryUrl("https://github.com/owner/site/tree/main"), "https://github.com/owner/site");
+assert.equal(validateRepositoryUrl("https://github.com/owner/site/tree/feature/hardening/php"), "https://github.com/owner/site");
+for (const value of ["http://github.com/owner/site", "https://github.com/owner/site/blob/main/php.ini", "https://github.com/owner/site/tree/", "https://user:token@github.com/owner/site", "https://github.com/owner/site?token=x", "https://evil.example/owner/site", "javascript:alert(1)"]) {
     assert.throws(() => validateRepositoryUrl(value));
 }
 assert.throws(() => validateRepositoryRepair({ state: "READY_TO_PUBLISH" }), /incomplete/);
@@ -16,6 +18,8 @@ assert.equal(hasPublishableProof({ ...report, checks: [] }), false);
 assert.equal(hasPublishableProof({ ...report, checks: [...report.checks, { phase: "CANDIDATE", passed: false }] }), false);
 assert.equal(safePullRequestUrl({ ...report, pullRequest: { number: 4, url: "javascript:alert(1)" } }), null);
 assert.equal(safePullRequestUrl({ ...report, pullRequest: { number: 4, url: "https://github.com/other/site/pull/4" } }), null);
+assert.equal(safePullRequestUrl({ ...report, repository: "OWNER/Site", pullRequest: { number: 4, url: "https://github.com/owner/site/pull/4" } }), "https://github.com/owner/site/pull/4");
+assert.equal(safePullRequestUrl({ ...report, pullRequest: { number: 4, url: "https://github.com/owner/site/pull/4?token=x" } }), null);
 
 globalThis.window = { location: { search: "?mock=1" } };
 globalThis.document = { getElementById: () => null };
@@ -72,6 +76,10 @@ await refreshRepositoryRepairs(assessment);
 assert.equal(sessionCalls, 1);
 assert.equal(calls.filter((call) => call.method === "POST").length, 0, "opening a report never connects, repairs, or publishes");
 assert.equal(timers.size, 0, "no idle polling");
+const beforeDemoSelection = calls.length;
+handlers.onUseConnectedDemo("https://connected.example/");
+assert.equal(getState().ui.websiteUrl, "https://connected.example/");
+assert.equal(calls.length, beforeDemoSelection, "selecting the connected demo only fills the new-assessment draft");
 let renders = 0;
 const unsubscribe = subscribe(() => renders++);
 handlers.onDraft(assessmentId, { url: "https://github.com/owner/site" });
