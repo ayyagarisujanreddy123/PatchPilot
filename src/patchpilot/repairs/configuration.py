@@ -107,13 +107,16 @@ def apply_changes(
     candidate = "".join(lines)
     inspect_ini(candidate)
     chunks = difflib.unified_diff(
-            content.splitlines(keepends=True),
-            candidate.splitlines(keepends=True),
-            fromfile=f"a/{path}",
-            tofile=f"b/{path}",
-            n=0,
-        )
-    diff = "".join(chunk if chunk.endswith("\n") else chunk + "\n\\ No newline at end of file\n" for chunk in chunks)
+        content.splitlines(keepends=True),
+        candidate.splitlines(keepends=True),
+        fromfile=f"a/{path}",
+        tofile=f"b/{path}",
+        n=0,
+    )
+    diff = "".join(
+        chunk if chunk.endswith("\n") else chunk + "\n\\ No newline at end of file\n"
+        for chunk in chunks
+    )
     if not diff:
         raise ConnectedRepairError(
             "The repository already has the supported secure settings; no change is needed."

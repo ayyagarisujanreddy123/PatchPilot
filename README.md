@@ -1,6 +1,6 @@
 # PatchPilot
 
-PatchPilot's default dashboard assesses a real public website URL, collects fresh HTTP response evidence, and obtains Anthropic remediation guidance tied to those observations. It shows collection and agent activity, PHP detection confidence, evidence-linked findings, suggested configuration/code, and the assessment's coverage and limitations. The separate **Repair lab** retains the approved local Apache/PHP deployment-repair workflow.
+PatchPilot's agent **Victor**, powered by Anthropic, assesses a real website URL and can prepare a tested PHP configuration repair in a connected GitHub repository. It collects fresh evidence, explains findings, tests an isolated candidate, and creates a draft pull request after explicit review. The separate **Repair lab** retains the approved local Apache/PHP deployment-repair workflow.
 
 The implementation separates `webscan/` public HTTP collection, rules, and Anthropic analysis; `core/` local repair assessment, policy, planning, and control; `runtime/` Docker lifecycle and HTTP verification; `backend/` sessions, job admission, persistence, and recovery; `shared/` camelCase contracts; and `static/` the landing page and dashboard. Python code lives under `src/patchpilot/`, tests under `tests/`, and local repair fixtures under `fixtures/`.
 
@@ -39,6 +39,26 @@ Collection/provider failures remain `FAILED`, with any partial observations and 
 The interface uses system fonts, CSS depth, and reduced-motion-aware transitions without 3D libraries or external assets. Idle/completed scans stop polling; active refreshes update the store once and skip unchanged reports. See the [focused UI contract](docs/design/intuitive-workspace.md).
 
 See the [demo guide](docs/demo/demo-script.md) for the one-site walkthrough. The guide records a completed 2026-10-24 browser/Anthropic assessment of the public sample, with its actual response fingerprint and provider metadata, separately from test-double checks.
+
+## Connect a repository and prepare a tested fix
+
+After a completed public assessment, expand **Connect your GitHub repository**.
+Use the local account configured with `gh auth login` or a local `GITHUB_TOKEN`;
+the dashboard never asks you to paste credentials into a URL. The account needs
+write access to the chosen repository. A same-origin deployment marker must match
+its current default-branch commit and supported `.patchpilot.json` profile.
+
+Choose the website functions to preserve, connect, then **Prepare tested fix**.
+Victor proposes only allowlisted PHP settings. Fixed checks run against baseline
+and candidate in isolated, pinned PHP containers without network access, host
+credentials, repository installers, or repository Dockerfiles. Homepage/contact
+validation and real 3 MiB upload size/hash checks run when selected.
+
+Only a passing exact candidate unlocks **Create draft pull request**. Publication
+rechecks the base commit, preserves upload limits, and reconciles retries to the
+same branch/PR. It neither merges nor deploys the change. Unsupported profiles and
+failures retain evidence rather than inventing a repair. Start with the
+[connected demo walkthrough and actual acceptance](docs/demo/connected-repair.md).
 
 ## Separate repair lab
 

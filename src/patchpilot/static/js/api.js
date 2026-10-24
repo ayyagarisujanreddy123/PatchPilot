@@ -4,6 +4,7 @@ import { isMockRequestedInUrl } from "./util.js";
 import { getUi, patchUi } from "./state.js";
 import { normalizeSite, normalizeRun, normalizeEvent } from "./live.js";
 import { validateWebsiteReport } from "./website.js";
+import { validateRepositoryConnection, validateRepositoryRepair } from "./repositoryRepairModel.js";
 
 let mockApi;
 let liveForced = false;
@@ -45,6 +46,7 @@ async function fetchJson(path, init = {}) {
         const error = new Error(payload?.error?.message ?? `Request failed (HTTP ${response.status}).`);
         error.status = response.status;
         error.code = payload?.error?.code;
+        error.details = payload?.error?.details;
         throw error;
     }
     return payload;
@@ -88,6 +90,50 @@ export async function getWebsiteExamples() {
     const result = await fetchJson("/api/website-assessments/examples");
     if (!Array.isArray(result?.items)) { throw new Error("Invalid public sample list response."); }
     return result.items;
+}
+
+// Connected repairs use the local operator's real GitHub account, never lab mocks.
+export async function getRepositoryGitHubStatus() {
+    await ensureSession();
+    const result = await fetchJson("/api/repository-connections/status");
+    if (typeof result?.available !== "boolean") { throw new Error("Invalid GitHub account status response."); }
+    return result;
+}
+
+export async function getRepositoryConnections(assessmentId) {
+    await ensureSession();
+    const result = await fetchJson(`/api/repository-connections?assessmentId=${encodeURIComponent(assessmentId)}`);
+    if (!Array.isArray(result?.items)) { throw new Error("Invalid repository connection history response."); }
+    return result.items.map(validateRepositoryConnection);
+}
+
+export async function createRepositoryConnection(assessmentId, repositoryUrl, capabilities) {
+    return validateRepositoryConnection(await mutate("/api/repository-connections", { assessmentId, repositoryUrl, capabilities }));
+}
+
+export async function createRepositoryRepair(connectionId) {
+    const result = await mutate("/api/repository-repairs", { connectionId });
+    if (!result?.repairId) { throw new Error("The backend did not return a repository repair ID. Refresh before retrying."); }
+    return result;
+}
+
+export async function getRepositoryRepair(repairId) {
+    await ensureSession();
+    return validateRepositoryRepair(await fetchJson(`/api/repository-repairs/${encodeURIComponent(repairId)}`));
+}
+
+export async function getRepositoryRepairs(assessmentId) {
+    await ensureSession();
+    const result = await fetchJson(`/api/repository-repairs?assessmentId=${encodeURIComponent(assessmentId)}`);
+    if (!Array.isArray(result?.items)) { throw new Error("Invalid repository repair history response."); }
+    return result.items.map(validateRepositoryRepair);
+}
+
+export async function publishRepositoryRepair(repairId, idempotencyKey) {
+    if (!idempotencyKey) { throw new Error("A stable publication request key is required."); }
+    const result = await mutate(`/api/repository-repairs/${encodeURIComponent(repairId)}/pull-request`, {}, { "Idempotency-Key": idempotencyKey });
+    if (result?.repairId !== repairId) { throw new Error("The backend did not identify this publication. Refresh the repair before retrying."); }
+    return result;
 }
 
 async function listRuns() {

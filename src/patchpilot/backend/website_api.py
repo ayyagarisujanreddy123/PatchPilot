@@ -1,5 +1,6 @@
 """Public website assessment endpoints; reads and jobs belong to one session."""
 
+import json
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Request
@@ -38,7 +39,30 @@ def get_website_router() -> APIRouter:
     router = APIRouter(prefix="/api/website-assessments")
 
     @router.get("/examples")
-    async def examples(session_id: str = Depends(operator_session)):
+    async def examples(request: Request, session_id: str = Depends(operator_session)):
+        try:
+            demo = json.loads(
+                (request.app.state.run_store.runs_dir.parent / "connected-demo" / "public.json").read_text()
+            )
+            url = validate_url(demo["url"])
+            from patchpilot.repairs.github import repository_name
+
+            repository = repository_name(demo["repositoryUrl"])
+            return {
+                "items": [
+                    {
+                        "id": "connected-php-demo",
+                        "title": "Connected PHP community demo",
+                        "url": url,
+                        "kind": "owned connected repair demonstration",
+                        "description": "A working PHP website linked to its GitHub source. Victor collects fresh evidence; no saved findings are loaded.",
+                        "sourceUrl": f"https://github.com/{repository}",
+                        "repositoryUrl": f"https://github.com/{repository}",
+                    }
+                ]
+            }
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
         return {"items": EXAMPLES}
 
     @router.post("", status_code=202)

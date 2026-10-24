@@ -60,7 +60,7 @@ class WebsiteAssessmentAgent:
             )
             publish(
                 "ANALYZING",
-                "Starting the Anthropic assessment agent with the freshly collected evidence",
+                "Victor is reviewing the freshly collected website evidence",
             )
             advisor = self.advisor_factory()
             try:
@@ -72,7 +72,7 @@ class WebsiteAssessmentAgent:
             report.finished_at = _now()
             publish(
                 "COMPLETED",
-                "Live assessment and Anthropic fix recommendations are ready. No server changes were made.",
+                "Victor’s assessment and fix recommendations are ready. No server changes were made.",
             )
         except (PublicHTTPError, WebsiteAdviceError) as error:
             report.error, report.finished_at = str(error), _now()

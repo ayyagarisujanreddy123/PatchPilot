@@ -5,6 +5,7 @@ import { evidenceLinks, renderWebsiteEvidence, sourceLink } from "./websiteEvide
 import { renderWebsiteFindings, renderWebsiteAnalysis, renderWebsiteProvenance } from "./websiteFindings.js";
 import { renderWebsiteProgress } from "./websiteProgress.js";
 import { renderWebsiteStart, renderWebsiteHistory } from "./websiteStart.js";
+import { renderRepositoryRepair } from "./repositoryRepair.js";
 
 function overview(report) {
     const collected = report.responses.length > 0;
@@ -65,11 +66,14 @@ export function renderWebsite(root, snapshot, handlers) {
     if (snapshot.ui.websiteConnectionError) { workspace.append(el("p", { className: "field-error", attrs: { role: "alert" } }, snapshot.ui.websiteConnectionError)); }
     if (snapshot.ui.websiteLoading && !report) { workspace.append(el("p", { attrs: { role: "status" } }, "Loading your assessments…")); }
     if (report) {
-        workspace.append(reportView(report, handlers), el("details", { className: "website-new-assessment", id: "website-new-assessment" }, [
+        workspace.append(reportView(report, handlers));
+        const repositoryRepair = renderRepositoryRepair(snapshot, report, handlers.repository);
+        if (repositoryRepair) { workspace.append(repositoryRepair); }
+        workspace.append(el("details", { className: "website-new-assessment", id: "website-new-assessment" }, [
             el("summary", { id: "website-new-assessment-summary" }, [icon("globe"), "Check another website"]), renderWebsiteStart(snapshot, report, handlers),
         ]));
     } else { workspace.append(renderWebsiteStart(snapshot, report, handlers), el("ol", { className: "website-steps", attrs: { "aria-label": "How it works" } }, [
-        ["01", "Enter your URL", "Start with a public website."], ["02", "Watch the agent work", "Fresh evidence, analyzed by Anthropic."], ["03", "Review clear fixes", "Practical steps, ready for your review."],
+        ["01", "Enter your URL", "Start with a public website."], ["02", "Watch Victor work", "Your security agent, powered by Anthropic."], ["03", "Review clear fixes", "Practical steps, ready for your review."],
     ].map(([number, title, body]) => el("li", {}, [el("span", { className: "website-step-number" }, number), el("div", {}, [el("h2", {}, title), el("p", {}, body)])])))); }
     workspace.append(renderWebsiteHistory(snapshot, handlers));
     root.append(workspace);

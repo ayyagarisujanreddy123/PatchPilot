@@ -538,3 +538,64 @@ pre { background: var(--surface-subtle); padding: .85rem; border-radius: 6px; li
  .website-spinner { animation: none; }
  .website-scene__glass, .website-scene__shield, .website-scene__spark, .website-action__chevron > .icon { transition: none; }
 }
+
+/* Connected repository repairs: explicit owner actions, proof before publication. */
+.repository-repair { margin: 1.75rem 0; padding: 1.5rem; border: 1px solid #c8ddd3; border-radius: var(--radius-lg); background: #f4faf6; min-width: 0; }
+.repository-repair > h2 { margin: .4rem 0 .65rem; font-size: 1.1rem; letter-spacing: -.02em; }
+.repository-repair__intro { color: var(--text-muted); font-size: .8rem; line-height: 1.8; max-width: 82ch; }
+.repository-repair__connect { padding: 0; margin: 1rem 0; border: 1px solid var(--border); background: var(--surface); border-radius: 9px; }
+.repository-repair__connect > summary { display: flex; align-items: center; gap: .6rem; min-height: 52px; padding: .9rem 1rem; color: var(--text); font-size: .8rem; list-style: none; overflow-wrap: anywhere; }
+.repository-repair__connect > summary::-webkit-details-marker { display: none; }
+.repository-repair__connect > summary > .icon { width: 17px; height: 17px; flex-shrink: 0; color: var(--accent); }
+.repository-repair__expand { color: var(--accent); font-size: 1.1rem; margin-left: auto; }
+.repository-repair__connect[open] > summary { border-bottom: 1px solid var(--border); }
+.repository-repair__connect[open] .repository-repair__expand { font-size: 0; }
+.repository-repair__connect[open] .repository-repair__expand::after { content: '−'; font-size: 1.1rem; }
+.repository-repair__connect > :not(summary) { margin-inline: 1rem; }
+.repository-repair__connect > :last-child { margin-bottom: 1rem; }
+.repository-repair__form { display: grid; gap: .65rem; margin-block: 1rem; min-width: 0; }
+.repository-repair__form > label, .repository-repair__form legend { color: var(--text); font-size: .77rem; font-weight: 600; }
+.repository-repair__form #repository-url { width: 100%; min-width: 0; min-height: 46px; padding: .75rem; border: 1px solid #b8cdc5; border-radius: 7px; font-size: .8rem; background: #fcfefd; }
+.repository-repair__form > p { margin: 0; font-size: .73rem; line-height: 1.75; }
+.repository-repair__account { padding: .75rem; border-radius: 7px; background: var(--surface-subtle); color: var(--text); overflow-wrap: anywhere; }
+.repository-repair__form fieldset { display: grid; gap: .1rem; min-width: 0; padding: .5rem .8rem; margin: .5rem 0; border: 1px solid var(--border); border-radius: 7px; }
+.repository-repair__form legend { padding-inline: .3rem; }
+.repository-repair__checkbox { display: flex; align-items: center; gap: .6rem; min-height: 44px; font-size: .75rem; line-height: 1.6; cursor: pointer; }
+.repository-repair__checkbox input { width: 17px; height: 17px; flex-shrink: 0; accent-color: var(--accent); }
+.repository-repair__form > .btn { justify-self: start; }
+.repository-repair__connection { padding-block: .25rem; }
+.repository-repair__connection h3 { font-size: .9rem; margin-block: 1rem .6rem; overflow-wrap: anywhere; }
+.repository-repair__connection p, .repository-repair__instructions p, .repository-repair__report > p { font-size: .77rem; line-height: 1.8; overflow-wrap: anywhere; }
+.repository-repair__disclosure { min-width: 0; margin-block: .75rem; padding: .6rem .8rem; border-radius: 7px; background: var(--surface); }
+.repository-repair__disclosure > summary { min-height: 32px; display: list-item; font-size: .74rem; overflow-wrap: anywhere; }
+.repository-repair__disclosure p, .repository-repair__disclosure ul { font-size: .73rem; line-height: 1.8; overflow-wrap: anywhere; }
+.repository-repair pre { max-width: 100%; margin-block: .9rem; padding: .9rem; border: 1px solid var(--border); border-radius: 7px; background: #fbfdfb; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .72rem; line-height: 1.75; }
+.repository-repair__scope { font-size: .7rem; line-height: 1.8; color: var(--text-muted); margin-block: .85rem 0; }
+.repository-repair__report { margin-top: 1.25rem; padding-top: 1.25rem; border-top: 1px solid #c8ddd3; }
+.repository-repair__status { display: flex; align-items: start; gap: .75rem; padding: 1rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.repository-repair__status > div { min-width: 0; }
+.repository-repair__status h3 { margin: 0 0 .5rem; font-size: .9rem; }
+.repository-repair__status p { margin: 0; font-size: .77rem; line-height: 1.8; overflow-wrap: anywhere; }
+.repository-repair__status p + p { margin-top: .5rem; }
+.repository-repair__status.is-active { background: var(--agent-soft); border-color: #cdddf9; color: #214c98; }
+.repository-repair__status.is-failed { background: var(--red-soft); border-color: #e7c9d0; color: var(--status-danger); }
+.repository-repair__proof { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .8rem; margin-block: 1rem; }
+.repository-repair__proof > section { padding: 1rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); min-width: 0; }
+.repository-repair__proof h4 { font-size: .8rem; margin: 0 0 .5rem; }
+.repository-repair__count { font-size: .73rem; color: var(--text-muted); }
+.repository-repair__proof ul { padding: 0; list-style: none; margin-bottom: 0; }
+.repository-repair__proof li { padding-block: .75rem; font-size: .72rem; line-height: 1.7; overflow-wrap: anywhere; }
+.repository-repair__proof li + li { border-top: 1px solid var(--border); }
+.repository-repair__proof .is-passed > strong { color: var(--status-verified); }
+.repository-repair__proof .is-failed > strong { color: var(--status-danger); }
+.repository-repair__proof li > details { padding: .3rem 0 0; margin: .2rem 0 0; background: transparent; border: 0; }
+.repository-repair__proof li > details > summary { min-height: 32px; font-size: .69rem; }
+.repository-repair__proof li > details p { font-size: .7rem; white-space: pre-wrap; }
+.repository-repair #repository-pr-link { margin-top: .5rem; }
+@media(max-width:760px) {
+ .repository-repair { padding: 1rem; }
+ .repository-repair__proof { grid-template-columns: 1fr; }
+ .repository-repair__connect > summary { padding: .8rem; }
+ .repository-repair__connect > :not(summary) { margin-inline: .8rem; }
+ .repository-repair__form > .btn, .repository-repair > .btn, .repository-repair__report > .btn { width: 100%; }
+}

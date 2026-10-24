@@ -5,7 +5,7 @@ import { WEBSITE_ACTIVE_STATES, websiteTimestamp } from "../website.js";
 function activity(report) {
     return el("ol", { className: "website-event-list", attrs: { "aria-label": "Recorded assessment activity" } }, report.events.map((event) => el("li", {}, [
         el("time", { attrs: { datetime: event.timestamp } }, websiteTimestamp(event.timestamp)),
-        el("strong", {}, event.stage === "ANALYZING" ? "Anthropic agent" : event.stage === "COLLECTING" ? "HTTP collection" : event.stage),
+        el("strong", {}, event.stage === "ANALYZING" ? "Victor" : event.stage === "COLLECTING" ? "HTTP collection" : event.stage),
         el("span", {}, event.message),
     ])));
 }
@@ -27,7 +27,7 @@ export function renderWebsiteProgress(report) {
     return el("section", { className: `website-progress ${failed ? "website-progress--failed" : "website-progress--active"}`, attrs: { "aria-labelledby": "website-progress-heading" } }, [
         el("div", { className: "website-agent-status" }, [
             active ? el("span", { className: "website-spinner", attrs: { "aria-hidden": "true" } }) : icon("alert"),
-            el("div", {}, [el("h2", { id: "website-progress-heading" }, failed ? "We couldn't finish this assessment" : report.state === "ANALYZING" ? "Anthropic agent is working" : "Checking your website"),
+            el("div", {}, [el("h2", { id: "website-progress-heading" }, failed ? "We couldn't finish this assessment" : report.state === "ANALYZING" ? "Victor is working" : "Checking your website"),
                 el("p", { id: "website-agent-message", attrs: { role: failed ? "alert" : "status" } }, report.stageMessage)]),
         ]),
         active ? el("ol", { className: "website-stages", attrs: { "aria-label": "Assessment progress" } }, stages.map((stage, index) => el("li", {
