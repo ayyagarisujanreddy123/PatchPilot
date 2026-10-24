@@ -27,6 +27,9 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/patchpilot"]
 
+[tool.vercel]
+entrypoint = "src.patchpilot.backend.app:app"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
