@@ -625,7 +625,7 @@ function bindGlobalHandlers() {
     window.addEventListener("hashchange", () => {
         const { route, selectedSiteId, selectedAssessmentId } = parseRoute();
         patchUi({ route, selectedSiteId, selectedAssessmentId, runError: null });
-        document.title = `${route === "scan" ? "Website assessment" : route === "run" ? "Repair report" : route === "events" ? "Lab activity" : "Repair lab"} · PatchPilot`;
+        document.title = `${route === "scan" ? "Website assessment" : route === "run" ? "Repair report" : route === "events" ? "Lab activity" : "Repair lab"} · sewn`;
         document.getElementById("app-main")?.focus({ preventScroll: true });
         refreshCurrent();
     });
@@ -654,11 +654,11 @@ function showBootError(err) {
         el(
             "p",
             { className: "panel__lede" },
-            "PatchPilot could not finish loading. Open the browser developer console for details.",
+            "sewn could not finish loading. Open the browser developer console for details.",
         ),
         el("p", { className: "panel__status", attrs: { role: "alert" } }, message),
     );
-    console.error("PatchPilot boot failed:", err);
+    console.error("sewn boot failed:", err);
 }
 
 async function boot() {
@@ -667,7 +667,7 @@ async function boot() {
         const { route, selectedSiteId, selectedAssessmentId } = parseRoute();
         const requestedUrl = new URLSearchParams(window.location.search).get("url")?.slice(0, 2048) ?? "";
         patchUi({ route, selectedSiteId, selectedAssessmentId, mockMode: isMockMode(), siteUrl: requestedUrl, websiteUrl: requestedUrl });
-        document.title = `${route === "scan" ? "Website assessment" : "Repair lab"} · PatchPilot`;
+        document.title = `${route === "scan" ? "Website assessment" : "Repair lab"} · sewn`;
 
         subscribe(renderApp);
         bindGlobalHandlers();

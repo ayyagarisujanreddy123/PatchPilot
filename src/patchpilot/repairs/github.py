@@ -472,7 +472,7 @@ class GitHubClient:
                 "POST",
                 f"/repos/{repository}/git/commits",
                 json_body={
-                    "message": f"fix: harden PHP runtime settings\n\nPatchPilot repair {repair_id}",
+                    "message": f"fix: harden PHP runtime settings\n\nsewn repair {repair_id}",
                     "tree": checked_sha(tree.get("sha")),
                     "parents": [base_commit],
                 },

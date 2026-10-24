@@ -156,7 +156,7 @@ def create_app(
     custom_website_agent: WebsiteAgent | None = None,
     custom_repository_service: RepositoryService | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="PatchPilot", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="sewn", version="0.1.0", lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
     app.state.run_store = custom_run_store or FileRunStore(RUNS_DIR)
     app.state.event_sink = custom_event_sink or FileEventSink(app.state.run_store.runs_dir)

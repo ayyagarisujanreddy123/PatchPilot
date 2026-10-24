@@ -75,7 +75,9 @@ h1 { font-weight: 650; }
 .btn:disabled { color: #6c788b; background: #edf0f5; border-color: #e0e5ed; }
 .btn--small { min-height: 36px; padding: .4rem .7rem; font-size: .8rem; }
 .wordmark { display: inline-flex; gap: .6rem; align-items: center; color: var(--text); text-decoration: none; font-size: 1.15rem; font-weight: 700; letter-spacing: -.04em; }
-.wordmark img { width: 30px; height: 30px; flex: 0 0 auto; }
+.wordmark:not(.wordmark--sewn) img { width: 30px; height: 30px; flex: 0 0 auto; }
+.wordmark--sewn { flex-shrink: 0; padding: 2px 8px; border-radius: 8px; background: #f6f7f2; }
+.wordmark--sewn img { display: block; width: 160px; height: auto; aspect-ratio: 2126 / 740; flex: 0 0 auto; object-fit: contain; }
 .eyebrow { display: block; font-size: .7rem; font-weight: 650; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); }
 .icon { width: 19px; height: 19px; flex-shrink: 0; stroke-width: 1.7; }
 .muted, .hint, .run-muted { color: var(--text-muted); }

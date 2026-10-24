@@ -1,4 +1,4 @@
-# PatchPilot interface
+# sewn interface
 
 Plain HTML, CSS, and JavaScript ES modules; no frontend build step. FastAPI serves
 the product landing page at `/` and the workspace at `/dashboard`. The default

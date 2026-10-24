@@ -1,6 +1,6 @@
-# PatchPilot
+# sewn
 
-PatchPilot's agent **Victor**, powered by Anthropic, assesses a real website URL and can prepare a tested PHP configuration repair in a connected GitHub repository. It collects fresh evidence, explains findings, tests an isolated candidate, and creates a draft pull request after explicit review. The separate **Repair lab** retains the approved local Apache/PHP deployment-repair workflow.
+sewn's agent **Victor**, powered by Anthropic, assesses a real website URL and can prepare a tested PHP configuration repair in a connected GitHub repository. It collects fresh evidence, explains findings, tests an isolated candidate, and creates a draft pull request after explicit review. The separate **Repair lab** retains the approved local Apache/PHP deployment-repair workflow.
 
 The implementation separates `webscan/` public HTTP collection, rules, and Anthropic analysis; `core/` local repair assessment, policy, planning, and control; `runtime/` Docker lifecycle and HTTP verification; `backend/` sessions, job admission, persistence, and recovery; `shared/` camelCase contracts; and `static/` the landing page and dashboard. Python code lives under `src/patchpilot/`, tests under `tests/`, and local repair fixtures under `fixtures/`.
 

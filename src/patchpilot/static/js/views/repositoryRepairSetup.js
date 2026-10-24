@@ -6,7 +6,7 @@ export function repositorySetupInstructions() {
     return el("details", { className: "repository-repair__disclosure", id: "repository-setup" }, [
         el("summary", { id: "repository-setup-summary" }, "Repository not supported yet? View setup requirements"),
         el("div", { className: "repository-repair__instructions" }, [
-            el("p", {}, "You need push access through GitHub authentication configured on this computer. PatchPilot does not request an OAuth token in this form."),
+            el("p", {}, "You need push access through GitHub authentication configured on this computer. sewn does not request an OAuth token in this form."),
             el("p", {}, "Add a .patchpilot.json manifest at the repository root. Use paths and capabilities that match your site. Homepage is required; contact and upload need the supported JSON response contracts."),
             el("pre", {}, el("code", {}, JSON.stringify(manifest, null, 2))),
             el("p", {}, "Serve /.well-known/patchpilot.json from the assessed website with the same siteId, selected repository, and its exact default branch HEAD commit. Replace the template values below."),
@@ -34,7 +34,7 @@ export function repositoryConnectForm(snapshot, assessmentId, data, handlers) {
     const form = el("form", { id: "repository-connect-form", className: "repository-repair__form" }, [
         el("p", { id: "repository-github-status", className: "repository-repair__account", attrs: { role: "status" } }, !status ? "Checking GitHub authentication on this computer…" : status.available ? `GitHub account on this computer${status.login ? `: ${status.login}` : " is available"}. ${status.message}` : status.message),
         el("label", { attrs: { for: "repository-url" } }, "GitHub repository URL"), input,
-        el("p", { id: "repository-url-hint", className: "muted" }, "Repository URLs and /tree/branch links work. PatchPilot uses the current default branch commit, regardless of the link's branch."),
+        el("p", { id: "repository-url-hint", className: "muted" }, "Repository URLs and /tree/branch links work. sewn uses the current default branch commit, regardless of the link's branch."),
         el("div", { className: "repository-repair__account", id: "repository-identity-help" }, [
             el("p", {}, `${assessmentOnly ? "This sample supports website assessment only. " : ""}Match the website and repository. Connecting requires push access and a matching deployment marker; an unrelated repository cannot repair this website.`),
             connectedDemo && sample?.connectionSupport !== "CONNECTED" && !sample?.repositoryUrl ? el("div", {}, [el("p", {}, "For the full workflow, use the connected PHP demo."),

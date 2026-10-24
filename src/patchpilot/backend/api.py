@@ -180,7 +180,7 @@ def get_api_router(
     @router.get("/runs/{run_id}/report")
     async def report(run_id: str):
         record = await require_run(run_id)
-        text = f"# PatchPilot Repair Report: {record.run_id}\n\nState: {record.state.value}\n\nEvidence complete: {record.evidence_complete}\n"
+        text = f"# sewn Repair Report: {record.run_id}\n\nState: {record.state.value}\n\nEvidence complete: {record.evidence_complete}\n"
         if record.error:
             text += f"\nOutcome: {record.error}\n"
         return {

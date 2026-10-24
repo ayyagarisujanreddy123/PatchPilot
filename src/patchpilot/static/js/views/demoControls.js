@@ -5,7 +5,7 @@
 import { clearElement, el } from "../util.js";
 
 const RESET_CONFIRM =
-    "Reset the project fleet to the vulnerable baseline? This does not affect sites outside PatchPilot.";
+    "Reset the project fleet to the vulnerable baseline? This does not affect sites outside sewn.";
 
 export function renderDemoControls(root, snapshot, handlers) {
     clearElement(root);
@@ -107,7 +107,7 @@ export function renderDemoControls(root, snapshot, handlers) {
 
     if (disabled) {
         root.append(
-            el("p", { className: "hint hint--disabled", attrs: { role: "status" } }, "Disabled while PatchPilot is busy."),
+            el("p", { className: "hint hint--disabled", attrs: { role: "status" } }, "Disabled while sewn is busy."),
         );
     }
 }

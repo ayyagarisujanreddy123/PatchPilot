@@ -508,7 +508,7 @@ class RepositoryRepairService:
                 "",
                 "This proof covers an isolated reconstruction of the declared source commit. This PR has not been deployed and does not claim the live website is repaired.",
                 "",
-                f"PatchPilot repair: `{report.repair_id}`",
+                f"sewn repair: `{report.repair_id}`",
             ]
         )
         return "\n".join(lines)
