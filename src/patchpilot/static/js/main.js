@@ -23,8 +23,13 @@ import {
     enableMockModeFromUi,
     postReset,
     postPrepare,
+    createWebsiteAssessment,
+    getWebsiteAssessment,
+    getWebsiteAssessmentHistory,
+    getWebsiteExamples,
 } from "./api.js";
 import { matchRegisteredUrl } from "./live.js";
+import { validateWebsiteUrl, WEBSITE_ACTIVE_STATES } from "./website.js";
 import {
     renderBackendBanner,
     renderHeader,
@@ -37,6 +42,7 @@ import { renderMetrics } from "./views/metrics.js";
 import { renderRecipes } from "./views/recipes.js";
 import { afterRenderEvents, renderEvents, resetEventsScrollTracking } from "./views/events.js";
 import { renderDemoControls } from "./views/demoControls.js";
+import { renderWebsite } from "./views/website.js";
 import { clearElement, el } from "./util.js";
 
 const POLL_ACTIVE_MS = 1000;
@@ -46,6 +52,7 @@ let pollTimer = null;
 let approvalEscapeUnbind = null;
 let lastFocusedBeforeApproval = null;
 let assessmentRequest = 0;
+let websiteRefresh = null;
 
 function restoreApprovalFocus() {
     const previous = lastFocusedBeforeApproval;
@@ -54,20 +61,25 @@ function restoreApprovalFocus() {
 }
 
 function parseRoute() {
-    const hash = window.location.hash.replace(/^#/, "") || "/fleet";
+    const hash = window.location.hash.replace(/^#/, "") || (isMockMode() ? "/fleet" : "/scan");
     const parts = hash.split("/").filter(Boolean);
+    if (parts[0] === "scan") { return { route: "scan", selectedSiteId: null, selectedAssessmentId: parts[1] ?? null }; }
     if (parts[0] === "run" && parts[1]) {
-        return { route: "run", selectedSiteId: parts[1] };
+        return { route: "run", selectedSiteId: parts[1], selectedAssessmentId: null };
     }
     const route = parts[0] || "fleet";
     if (["fleet", "metrics", "recipes", "events"].includes(route)) {
-        return { route, selectedSiteId: null };
+        return { route, selectedSiteId: null, selectedAssessmentId: null };
     }
-    return { route: "fleet", selectedSiteId: null };
+    return { route: "scan", selectedSiteId: null, selectedAssessmentId: null };
 }
 
 function navigate(route, siteId = null) {
-    if (route === "run" && siteId) {
+    if (route === "scan") {
+        window.location.hash = `#/scan${siteId ? `/${encodeURIComponent(siteId)}` : ""}`;
+        patchUi({ route: "scan", selectedSiteId: null, selectedAssessmentId: siteId, websiteConnectionError: null });
+        refreshWebsiteState();
+    } else if (route === "run" && siteId) {
         window.location.hash = `#/run/${siteId}`;
         patchUi({ route: "run", selectedSiteId: siteId, runError: null });
         refreshRunIfNeeded();
@@ -255,6 +267,70 @@ const eventsHandlers = {
     onToggleAutoScroll: (enabled) => patchUi({ eventLogAutoScroll: enabled }),
 };
 
+const websiteHandlers = {
+    onUrlChange: (websiteUrl) => patchUi({ websiteUrl, websiteError: null }),
+    onExample: (websiteUrl) => {
+        patchUi({ websiteUrl, websiteError: null });
+        document.getElementById("website-url")?.focus();
+    },
+    onSelect: (id) => navigate("scan", id),
+    onRefresh: () => refreshWebsiteState(true),
+    onSubmit: async (input) => {
+        if (getState().ui.websiteSubmitting) { return; }
+        let url;
+        try { url = validateWebsiteUrl(input); }
+        catch (err) {
+            patchUi({ websiteError: err.message });
+            document.getElementById("website-url")?.focus();
+            return;
+        }
+        patchUi({ websiteSubmitting: true, websiteError: null, websiteUrl: url });
+        try {
+            const result = await createWebsiteAssessment(url);
+            navigate("scan", result.assessmentId);
+            await refreshWebsiteState(true);
+        } catch (err) {
+            patchUi({ websiteError: err.message });
+        } finally { patchUi({ websiteSubmitting: false }); }
+    },
+};
+
+async function refreshWebsiteState(forceHistory = false) {
+    if (getState().ui.route !== "scan") { return; }
+    if (websiteRefresh) { return websiteRefresh; }
+    websiteRefresh = (async () => {
+        const selected = getState().ui.selectedAssessmentId;
+        const current = getState().websiteReports[selected];
+        const loadHistory = forceHistory || !getState().websiteLoaded || !WEBSITE_ACTIVE_STATES.has(current?.state);
+        const errors = [];
+        if (loadHistory) {
+            const [history, examples] = await Promise.allSettled([getWebsiteAssessmentHistory(), getWebsiteExamples()]);
+            if (history.status === "fulfilled") { patchState({ websiteHistory: history.value }); }
+            else { errors.push(history.reason.message); }
+            if (examples.status === "fulfilled") { patchState({ websiteExamples: examples.value }); }
+            else { errors.push(`Public samples unavailable: ${examples.reason.message}`); }
+        }
+        if (selected) {
+            try {
+                const report = await getWebsiteAssessment(decodeURIComponent(selected));
+                patchState({ websiteReports: { ...getState().websiteReports, [selected]: report } });
+            } catch (err) { errors.push(err.message); }
+        }
+        patchState({ websiteLoaded: true });
+        patchUi({ websiteLoading: false, websiteConnectionError: errors.join(" ") || null });
+        const latest = getState().websiteReports[getState().ui.selectedAssessmentId];
+        schedulePoll(WEBSITE_ACTIVE_STATES.has(latest?.state) || getState().ui.websiteSubmitting);
+    })().finally(() => { websiteRefresh = null; });
+    return websiteRefresh;
+}
+
+async function refreshCurrent() {
+    if (getState().ui.route === "scan") { await refreshWebsiteState(); return; }
+    await refreshState();
+    await refreshEvents();
+    await refreshRunIfNeeded();
+}
+
 async function reloadAllEvents() {
     try {
         const events = await getEvents(0);
@@ -364,15 +440,15 @@ function schedulePoll(active) {
     }
     const delay = active ? POLL_ACTIVE_MS : POLL_IDLE_MS;
     pollTimer = setTimeout(async () => {
-        await refreshState();
-        await refreshEvents();
-        await refreshRunIfNeeded();
+        await refreshCurrent();
     }, delay);
 }
 
 function renderMainPanel(container, snapshot) {
     clearElement(container);
     const { ui } = snapshot;
+
+    if (ui.route === "scan") { renderWebsite(container, snapshot, websiteHandlers); return; }
 
     if (ui.route === "run" && ui.selectedSiteId) {
         renderRun(container, snapshot, runHandlers);
@@ -414,7 +490,7 @@ function syncApprovalEscape(snapshot) {
 function renderApp(snapshot) {
     const focused = document.activeElement;
     const focusedId = focused?.id;
-    const inputValue = focusedId === "registered-site-url" ? focused.value : null;
+    const inputValue = ["registered-site-url", "website-url"].includes(focusedId) ? focused.value : null;
     const selection = inputValue != null ? [focused.selectionStart, focused.selectionEnd] : null;
     const disclosureState = [...document.querySelectorAll("details[id]")].map((detail) => [detail.id, detail.open]);
     const scrollState = [...document.querySelectorAll(".table-scroll[id], .drawer__body[id], #event-log-scroll-region")]
@@ -431,6 +507,10 @@ function renderApp(snapshot) {
         busy: snapshot.busy || snapshot.ui.preparing || snapshot.ui.resetting,
         mockMode: snapshot.ui.mockMode || isMockMode(),
         health: snapshot.health,
+        route: snapshot.ui.route,
+        websiteReport: snapshot.websiteReports[snapshot.ui.selectedAssessmentId],
+        websiteSubmitting: snapshot.ui.websiteSubmitting,
+        websiteLoading: snapshot.ui.websiteLoading,
     });
     renderNav(navEl, {
         route: snapshot.ui.route === "run" ? "fleet" : snapshot.ui.route,
@@ -438,7 +518,7 @@ function renderApp(snapshot) {
         health: snapshot.health,
     });
     renderBackendBanner(bannerEl, {
-        visible: snapshot.ui.backendUnreachable || Boolean(snapshot.ui.lastErrorMessage),
+        visible: snapshot.ui.route !== "scan" && (snapshot.ui.backendUnreachable || Boolean(snapshot.ui.lastErrorMessage)),
         message: snapshot.ui.lastErrorMessage,
         onUseDemo: () => {
             patchState({ runs: {} });
@@ -450,8 +530,10 @@ function renderApp(snapshot) {
         },
     });
 
-    mainEl.setAttribute("aria-busy", snapshot.busy || snapshot.ui.preparing || snapshot.ui.resetting ? "true" : "false");
+    mainEl.setAttribute("aria-busy", snapshot.ui.route === "scan" ? snapshot.ui.websiteSubmitting ? "true" : "false" : snapshot.busy || snapshot.ui.preparing || snapshot.ui.resetting ? "true" : "false");
     renderMainPanel(mainEl, snapshot);
+    const labControls = document.querySelector(".aside");
+    if (labControls) { labControls.hidden = snapshot.ui.route === "scan"; }
 
     if (approvalEl) {
         renderApproval(approvalEl, snapshot, approvalHandlers);
@@ -463,12 +545,13 @@ function renderApp(snapshot) {
         if (background) { background.inert = modalOpen; }
     }
     document.body.classList.toggle("has-modal", modalOpen);
-    const operation = snapshot.ui.loading ? "loading" : snapshot.ui.preparing ? "preparing" : snapshot.ui.resetting ? "resetting" : snapshot.busy ? "repairing"
+    const scanReport = snapshot.websiteReports[snapshot.ui.selectedAssessmentId];
+    const operation = snapshot.ui.route === "scan" ? `website-${scanReport?.state ?? (snapshot.ui.websiteSubmitting ? "submitting" : "ready")}` : snapshot.ui.loading ? "loading" : snapshot.ui.preparing ? "preparing" : snapshot.ui.resetting ? "resetting" : snapshot.busy ? "repairing"
         : !snapshot.health?.ready || !snapshot.health?.prepared ? "setup" : "ready";
     if (liveEl && operation !== liveEl.dataset.lastOperation) {
         liveEl.dataset.lastOperation = operation;
         liveEl.dataset.lastBusy = String(snapshot.busy);
-        liveEl.textContent = operation === "ready" ? "Workspace ready."
+        liveEl.textContent = snapshot.ui.route === "scan" ? scanReport?.stageMessage ?? (snapshot.ui.websiteSubmitting ? "Starting website assessment." : "Ready to assess a public website.") : operation === "ready" ? "Workspace ready."
             : operation === "loading" ? "Checking workspace readiness."
                 : operation === "setup" ? "Workspace setup required before assessment."
             : operation === "preparing" ? "Preparing the registered demo sites."
@@ -503,13 +586,11 @@ function renderApp(snapshot) {
 
 function bindGlobalHandlers() {
     window.addEventListener("hashchange", () => {
-        const { route, selectedSiteId } = parseRoute();
-        patchUi({ route, selectedSiteId, runError: null });
-        document.title = `${route === "run" ? "Repair report" : route === "events" ? "Activity" : "Dashboard"} · PatchPilot`;
+        const { route, selectedSiteId, selectedAssessmentId } = parseRoute();
+        patchUi({ route, selectedSiteId, selectedAssessmentId, runError: null });
+        document.title = `${route === "scan" ? "Website assessment" : route === "run" ? "Repair report" : route === "events" ? "Lab activity" : "Repair lab"} · PatchPilot`;
         document.getElementById("app-main")?.focus({ preventScroll: true });
-        if (route === "run" && selectedSiteId) {
-            refreshRunIfNeeded();
-        }
+        refreshCurrent();
     });
 
     const demoToggle = document.getElementById("demo-controls-toggle");
@@ -546,17 +627,16 @@ function showBootError(err) {
 async function boot() {
     try {
         initApiFromUrl();
-        const { route, selectedSiteId } = parseRoute();
+        const { route, selectedSiteId, selectedAssessmentId } = parseRoute();
         const requestedUrl = new URLSearchParams(window.location.search).get("url")?.slice(0, 2048) ?? "";
-        patchUi({ route, selectedSiteId, mockMode: isMockMode(), siteUrl: requestedUrl });
+        patchUi({ route, selectedSiteId, selectedAssessmentId, mockMode: isMockMode(), siteUrl: requestedUrl, websiteUrl: requestedUrl });
+        document.title = `${route === "scan" ? "Website assessment" : "Repair lab"} · PatchPilot`;
 
         subscribe(renderApp);
         bindGlobalHandlers();
         renderApp(getState());
 
-        await refreshState();
-        await refreshEvents();
-        await refreshRunIfNeeded();
+        await refreshCurrent();
         renderApp(getState());
     } catch (err) {
         showBootError(err);

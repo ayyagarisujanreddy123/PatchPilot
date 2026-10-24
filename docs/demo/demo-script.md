@@ -1,46 +1,127 @@
 # PatchPilot Demo Guide
 
-## What the demo proves
+## Default demo: a real public website
 
-Enter a registered website URL, assess its serving PHP runtime and configuration,
-review the proposed repair, approve it, and watch staging and live checks. The
-controller changes only the approved image/configuration profiles. It retains the
-original deployment for verified restoration.
+The dashboard's default task accepts a real public URL, collects fresh HTTP
+responses, and requests Anthropic guidance grounded in recorded observations.
+Show the collection, actual agent progress, evidence-linked findings, suggested
+fixes, and uncertainty. This procedure describes the implemented flow; record
+current live acceptance separately with its actual report and provenance.
 
-This prototype assesses a reviewed PHP advisory policy on four local fixtures.
-It does not perform a broad penetration test, connect arbitrary public websites,
-modify application source, or open repair PRs. Repairing a real website requires an
-authorized deployment or repository connection in a later integration.
+Public website assessment uses bounded normal GET requests. It observes public
+PHP signals, transport, response headers, and configuration indicators; it does
+not establish a full penetration test or apply changes to the remote server.
+Installed package/backport status and source-level vulnerabilities require
+additional authorized access. The local fixture repair remains a separate lab.
 
-## Start
+## Launch once, open one URL
 
-Follow the installation and Docker context instructions in [README](../../README.md).
-Run one controller on `http://127.0.0.1:8765`. Keep the ignored `.env` local.
+Follow installation and Anthropic configuration in [README](../../README.md).
+Keep the ignored `.env` local. From the repository root, run one process:
 
-1. Open the landing page, select **Open dashboard**, and confirm **Real local fixtures**.
-2. Select **Prepare demo sites** if the controller is not prepared. The first
-   preparation pulls images; later preparation can reuse locally verified digests.
-3. Enter `http://127.0.0.1:8081` and select **Assess site**, or choose
-   **Assess all sites** to demonstrate all four sites.
-4. Review the observed PHP version, mitigation setting, proposed changes, and
-   required checks. Approve only this displayed scope.
-5. Follow the run. Success requires checks against the candidate and again at the
-   original address. Clinics also upload an actual 3 MiB file and verify its hash.
-6. Return to Fleet and open each site's run. The report distinguishes a model
-   proposal from a previously verified recipe; both pass the same checks.
+```bash
+uv run --locked --extra dev uvicorn patchpilot.backend.app:app --host 127.0.0.1 --port 8765 --workers 1
+```
 
-## Reset and repeat
+Open **[http://127.0.0.1:8765/dashboard](http://127.0.0.1:8765/dashboard)**.
+The initial page is **Website assessment**. This flow needs no Docker preparation,
+fixture selection, or repair approval. The landing page is available at `/`.
 
-Open **Workspace controls**, optionally select **Also clear recipe memory**, and select
-**Reset fleet**. Confirm the reset. It restores the vulnerable local baseline and
-retains historical reports. Current site cards must stop claiming a patched state.
-Clear recipes before demonstrating the first model proposal again.
+## One-site walkthrough
 
-Fault playback in **simulated demo data** is a separate UI demonstration. Do not
-present it as a real rejected deployment. Real staging/restoration behavior is
-covered by the Docker acceptance tests.
+1. Select **Invicti PHP test site** to fill `http://php.testsparker.com/`. Explain
+   that this is a public sample URL, not a saved report. The button fills the form
+   only. Each start collects fresh responses.
+2. Select **Assess website**. The assessment receives its own ID and report URL.
+   Watch `QUEUED` become `COLLECTING`; **Live agent activity** records the actual
+   collection messages and timestamps.
+3. During `ANALYZING`, point out **Anthropic agent is working** and the actual
+   provider-generation message. Character counts come from received stream text;
+   the screen does not invent percentages or wait through a canned animation.
+   Fast responses may produce only a few updates.
+4. Inspect the response evidence: actual status, elapsed time, bytes read, body
+   SHA-256, header names, and any truncation. Follow **View evidence** from a finding
+   to its timestamped observation. Recorded values can change between assessments.
+5. Explain PHP confidence: `REPORTED` is a public response claim, `INFERRED` is a
+   weaker signal, and `UNKNOWN` means PHP/version was not confirmed. A banner does
+   not prove an installed binary or vendor backport status.
+6. At **Assessment completed**, show the validated Anthropic summary and suggested
+   configuration/code, steps, verification, and server-access requirements. Expand
+   **Analysis provenance** to show the returned model ID, provider message ID, and
+   token usage. Partial stream text is not presented as an accepted fix.
+7. Read **Coverage & limitations**. A completed assessment describes this evidence
+   and analysis; it does not declare the website safe or claim a verified repair.
+   Applying suggestions requires owner review and authorized server/source access.
 
-## Recorded acceptance
+Use **Assess this URL again** for a fresh report. Assessments belong to the issuing
+browser session. A controller restart invalidates that session; create a fresh
+assessment after restarting.
+
+## Failure behavior
+
+If collection or Anthropic fails, show the `FAILED` state, error, and any partial
+observations that remain. Missing provider configuration can leave collected HTTP
+evidence available without AI recommendations. Correct the reported prerequisite
+and start a fresh assessment. Never substitute a fixture report, saved sample,
+simulated AI response, or invented success for failed live work.
+
+The form accepts public HTTP(S) on ports 80/443 without credentials or query
+parameters. Private/reserved destinations and unsafe redirects are excluded.
+Assessment starts share operation admission with the lab; conflicting work returns
+409, and start limits return 429. Follow the reported error rather than starting
+another controller process.
+
+## Separate repair-lab walkthrough
+
+Select **Repair lab**, or visit `/dashboard#/fleet`. Follow the authorized Docker
+context instructions in [README](../../README.md); this is a separate task with
+local deployment authority.
+
+1. Select **Prepare demo sites** when required. Preparation resolves the approved
+   image digest, builds the project fixtures, and checks ports 8081–8084.
+2. Enter `http://127.0.0.1:8081` and select **Assess site**, or assess the eligible
+   local fleet. Review actual PHP/configuration findings, changes, and checks.
+3. Approve the displayed scope. Follow isolated staging and repeated checks at
+   the original address after activation. Upload fixtures perform a real 3 MiB
+   upload and verify byte count and hash.
+4. Inspect per-site results, model/verified-recipe provenance, and recovery evidence.
+   A restored original is reported as unpatched.
+
+For a repeat, open **Workspace controls**, optionally select **Also clear recipe
+memory**, and choose **Reset fleet**. Confirm the reset. It restores the vulnerable
+project baseline while retaining historical reports. Current site rows must stop
+claiming a patched state.
+
+`/dashboard?mock=1#/fleet` is the explicitly labeled simulated repair-lab walkthrough.
+Its scripted faults and recovery are useful for explaining the UI, but provide no
+real deployment or public-website evidence. It is not a website-assessment fallback.
+
+## Recorded live website acceptance
+
+A browser-driven assessment of `http://php.testsparker.com/` completed on
+2026-10-24 with fresh HTTP evidence and a real Anthropic response:
+
+| Recorded field | Value |
+| --- | --- |
+| Assessment | `website-8575b23863d44e81ae574a644c9bf4be` |
+| Created / finished (UTC) | `18:42:35.254952` / `18:42:46.280474` |
+| Response | HTTP 200; 136 bytes; 114 ms; not truncated |
+| PHP signal | `REPORTED`, version `5.2.6`; a public header claim, not installed-build proof |
+| Findings / validated fixes | 6 / 3 |
+| Analysis source / model | `ANTHROPIC` / `claude-sonnet-5-5` |
+| Provider message | `msg_011CgMZ6FzCFBaRN9diTeaYE` |
+| Input / output tokens | 2,787 / 1,253 |
+
+The response body SHA-256 was
+`700d35e46750c7cc3ad5b7481d3f2c5001a5e8fb9b4b85967fe71e28d42e5b95`.
+The report contains 14 activity events, including eight generation updates based
+on actual received stream text. The browser rehearsal reported no JavaScript
+errors. These values describe that snapshot, not a performance benchmark or a
+claim that the target was repaired or comprehensively tested. The complete report
+and screenshots remain local; no full report JSON is committed here.
+
+## Previously recorded repair-lab acceptance
+
 
 On 2026-10-24, browser-driven run
 `run-77575165a53d49c9b6d4f3c622379696` completed with actual Anthropic proposals:
@@ -69,15 +150,36 @@ recorded each site's provider provenance separately.
 
 ## Validation commands
 
+Deterministic website/backend and client-contract checks:
+
 ```bash
-DOCKER_CONTEXT=lima-patchpilot-demo uv run --locked --extra dev python -m pytest -q -p no:cacheprovider
+uv run --locked --extra dev python -m pytest -p no:cacheprovider tests/webscan tests/backend
+node src/patchpilot/static/scripts/verify-website.mjs
 node src/patchpilot/static/scripts/verify-api.mjs
+```
+
+The frontend contract scripts use test doubles and make no public network or
+Anthropic requests. Keep those results separate from a live one-site rehearsal.
+
+On 2026-10-24, the guarded `scripts/verify-ui.cjs` harness passed 19 checks with
+axe enabled. It covered the default website form and fill-only sample, responsive
+and keyboard behavior, polling persistence, and retained simulated lab workflows.
+It reported no browser errors, external requests, or HTTP writes and started no
+real website assessment or provider call.
+
+Repair-lab acceptance and scripted playback:
+
+```bash
+DOCKER_CONTEXT=lima-patchpilot-demo uv run --locked --extra dev python -m pytest -p no:cacheprovider -m docker tests/runtime
 node src/patchpilot/static/scripts/verify-mock.mjs
 uv build
 ```
 
-The complete Python gate passed **162 tests**, including the Docker tests, on
-2026-10-24. The API contract and five mock scenarios passed separately. Real
-Chrome checks covered desktop/mobile layouts, URL draft persistence, approval,
-per-site reports, clean console output, and successful asset responses. The
-browser/provider rehearsals above are separate from the simulated scenarios.
+The historical repair-lab Python gate passed 162 tests, including Docker tests,
+on 2026-10-24. That count predates the public website feature and is not its current
+acceptance result. The earlier API/mock and browser/provider rehearsals belong to
+that recorded lab milestone.
+
+Record new live website acceptance separately: target URL, assessment ID,
+created/finished timestamps, response status/bytes/hash, PHP confidence, findings,
+actual provider model/message ID and usage, and any failures or limitations.

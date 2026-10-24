@@ -3,7 +3,13 @@
  */
 
 const initialUi = {
-    route: "fleet",
+    route: "scan",
+    websiteUrl: "",
+    selectedAssessmentId: null,
+    websiteSubmitting: false,
+    websiteLoading: true,
+    websiteError: null,
+    websiteConnectionError: null,
     siteUrl: "",
     siteFilter: "all",
     selectedSiteId: null,
@@ -42,6 +48,10 @@ let state = {
     runs: {},
     events: [],
     lastEventId: 0,
+    websiteLoaded: false,
+    websiteHistory: [],
+    websiteExamples: [],
+    websiteReports: {},
 };
 
 const listeners = new Set();
@@ -132,6 +142,10 @@ export function resetStoreForMock() {
         runs: {},
         events: [],
         lastEventId: 0,
+        websiteLoaded: false,
+        websiteHistory: [],
+        websiteExamples: [],
+        websiteReports: {},
     };
     notify();
 }

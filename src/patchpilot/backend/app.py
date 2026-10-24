@@ -20,6 +20,8 @@ from patchpilot.backend.api import get_api_router
 from patchpilot.backend.control import OperationControl, complete_before_cancel
 from patchpilot.backend.reconciliation import TERMINAL_STATES, reconcile_interrupted_runs
 from patchpilot.backend.storage import FileEventSink, FileRecipeStore, FileRunStore
+from patchpilot.backend.website_api import get_website_router
+from patchpilot.backend.website_jobs import WebsiteAgent, WebsiteJobManager
 from patchpilot.shared.contracts import RunRecord, RunState
 from patchpilot.shared.ports import RepairService
 from patchpilot.shared.settings import BASE_DIR, RECIPES_DIR, RUNS_DIR
@@ -92,6 +94,7 @@ async def lifespan(app: FastAPI):
     control: OperationControl = app.state.control
     await control.open()
     try:
+        await app.state.website_jobs.open()
         if app.state.repair_service is None:
             from patchpilot.core.service import RealRepairService
             app.state.repair_service = RealRepairService(app.state.run_store, app.state.event_sink, app.state.recipe_store)
@@ -123,13 +126,17 @@ async def lifespan(app: FastAPI):
         finally:
             # Offloaded Docker/model work cannot be stopped by cancelling its await.
             # Drain the current bounded operation before closing its dependencies.
+            app.state.website_jobs.closing = True
             await app.state.worker_queue.put(None)
             try:
                 await complete_before_cancel(task)
             finally:
-                result = service.close()
-                if inspect.isawaitable(result):
-                    await result
+                try:
+                    await complete_before_cancel(app.state.website_jobs.shutdown())
+                finally:
+                    result = service.close()
+                    if inspect.isawaitable(result):
+                        await result
     finally:
         control.close()
 
@@ -139,6 +146,7 @@ def create_app(
     custom_event_sink: FileEventSink | None = None,
     custom_recipe_store: FileRecipeStore | None = None,
     custom_repair_service: RepairService | None = None,
+    custom_website_agent: WebsiteAgent | None = None,
 ) -> FastAPI:
     app = FastAPI(title="PatchPilot", version="0.1.0", lifespan=lifespan)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
@@ -147,6 +155,18 @@ def create_app(
     app.state.recipe_store = custom_recipe_store or FileRecipeStore(RECIPES_DIR)
     app.state.repair_service = custom_repair_service
     app.state.control = OperationControl(app.state.run_store.runs_dir)
+
+    def website_agent_factory() -> WebsiteAgent:
+        if custom_website_agent is not None:
+            return custom_website_agent
+        from patchpilot.webscan.agent import WebsiteAssessmentAgent
+        return WebsiteAssessmentAgent(workspace_root=BASE_DIR)
+
+    app.state.website_jobs = WebsiteJobManager(
+        app.state.run_store.runs_dir.parent / "website-assessments",
+        app.state.control, website_agent_factory,
+    )
+    app.include_router(get_website_router())
     app.include_router(get_api_router(app.state.run_store, app.state.event_sink, app.state.recipe_store))
 
     @app.middleware("http")
@@ -164,7 +184,10 @@ def create_app(
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
-        return error(exc.status_code, str(exc.status_code), str(exc.detail))
+        response = error(exc.status_code, str(exc.status_code), str(exc.detail))
+        if exc.headers:
+            response.headers.update(exc.headers)
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):

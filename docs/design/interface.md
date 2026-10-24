@@ -7,16 +7,22 @@ typography, generous spacing, and product-first presentation. PatchPilot uses it
 own copy, code-native illustration, branding, and task layout. No reference
 artwork, customer claims, or performance figures are copied.
 
-The landing page (`/`) explains the focused PHP prototype and gives one primary
-next step: **Open dashboard**. Its product illustration is explicitly an example.
-The secondary walkthrough is explicitly simulated. The scope FAQ explains which
-targets can be assessed and what approval authorizes.
+The landing page (`/`) introduces fresh public HTTP assessment and gives one primary
+next step: **Open dashboard**. The product illustration is labeled illustrative.
+The secondary **Explore repair lab simulation** link opens the separate local-lab
+walkthrough; it is not a public-website result or fallback.
 
-The dashboard (`/dashboard`) supports observation and decisions. The order is
-readiness → current site summary → URL assessment → registered sites → activity.
-Primary navigation contains Overview and Activity log; mock-only insights and
-recipe views stay out of the live workspace. Existing run and mock deep links
-remain supported.
+The dashboard's default task is **Website assessment** at `/dashboard` (`#/scan`).
+Its order is public URL → collection/agent activity → PHP detection confidence →
+evidence-linked findings → recorded HTTP evidence → Anthropic remediation →
+coverage and limitations. The first HTTP response opens to show status, timing,
+bytes, and body fingerprint. Public sample buttons fill the form without starting
+a job or loading precomputed findings.
+
+**Repair lab** (`#/fleet`) and **Lab activity** (`#/events`) are secondary navigation
+entries. The lab retains registered local targets, Docker preparation, exact-scope
+approval, staging/live verification, and recovery. Explicit `?mock=1#/fleet` playback
+stays labeled simulated. Existing repair run and mock deep links remain supported.
 
 ## HCI decisions
 
@@ -25,54 +31,90 @@ through concrete interaction rules:
 
 | Principle | Implemented behavior |
 | --- | --- |
-| Visible system status | Readiness explains missing prerequisites; progress uses recorded states; loading, failures, and final evidence are distinct. |
-| User control | Assessment and repair are separate actions. Approval names the exact scope, starts with Cancel focused, and has a clear exit. |
-| Error prevention | Unknown URLs are rejected locally, the entered value is retained, and repair remains gated by actual assessment and owner approval. |
-| Recognition | Registered URLs can fill the form; site filters and readable check labels reduce recall. |
+| Visible system status | Website collection and Anthropic analysis have distinct labels. Activity and generation counts come from actual server/provider events and timestamps, without fabricated percentages. |
+| User control | Starting public assessment is explicit. Suggested fixes require review and server/source access. The separate lab names the exact scope before repair approval and supports cancel. |
+| Error prevention | Website URL shape/private-destination checks run before submission, with authoritative destination/redirect validation on the server. Lab repair remains bound to registered targets and owner approval. |
+| Recognition | The public sample fills the URL field. Findings open their evidence by ID. PHP signals explicitly distinguish reported, inferred, and unknown. |
 | Consistency | Shared color, spacing, control, icon, and status tokens serve both screens. Ordinary navigation links expose their current location. |
-| Minimalism | One URL assessment action leads the page; raw identity/configuration evidence is disclosed on request. Earlier failures remain visible. |
+| Minimalism | One public URL action leads the default workspace. Technical observations and provenance use native disclosures. Failures and partial evidence remain visible. |
 
 Keyboard focus follows the [W3C focus-visible guidance](https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html).
-Dialog backgrounds become inert, focus stays in the review, and cancel returns to
-the invoking control. Polling preserves drafts, cursor selection, disclosure
-state, and focus. A dedicated live region announces operation changes without
-re-announcing the entire page. Statuses include text and symbols alongside color.
+Polling preserves drafts, cursor selection, disclosure state, focus, and reading
+positions. Evidence links open and focus their corresponding record. Native FAQ
+and evidence disclosures support keyboard operation. Statuses include text alongside
+color, and reduced-motion preferences suppress animation.
+
+The lab's modal approval makes backgrounds inert, traps focus, and returns focus
+to the invoking control on cancel. Those controls are hidden from the public
+assessment task, which needs no Docker preparation or repair approval.
+
+## Evidence and analysis boundaries
+
+**Assessment completed** describes collection and analysis, not a verified patch
+or a declaration of website safety. Public PHP headers are reported signals;
+installed package/backport status and source-level vulnerabilities need additional
+access. Configuration observations retain severity, confidence, references, and
+evidence links.
+
+The **Live agent activity** panel shows recorded collection and Anthropic events.
+During generation, actual stream character counts provide activity feedback.
+Recommendations/code appear only after the structured response is validated.
+**Analysis provenance** retains the returned model ID, provider message ID, and
+token usage. Suggested code is rendered as text, with an explicit copy action,
+and never executed by the UI.
+
+A network/provider failure remains `FAILED` and retains available observations.
+The UI does not substitute fixture evidence, saved examples, simulated analysis,
+or an invented security success. Missing PHP/version evidence stays `UNKNOWN`.
 
 ## Components and verification
 
 `design.css` owns shared foundations. `styles.css` owns the workspace;
-`landing.css` owns the public page. Small modules provide SVG icons, readiness,
-site records, approval, progress, and evidence. All assets remain local, with no
-frontend framework or build dependency.
+`landing.css` owns the public page. Website view modules separate report/progress,
+HTTP evidence, findings, and Anthropic guidance. Existing modules retain lab
+readiness, site records, approval, progress, and verification. All assets remain
+local, with no frontend framework or build dependency.
 
-`scripts/verify-ui.cjs` checks landing/deep-link routes, keyboard and modal behavior,
-URL boundaries, 320/768/1024/1440px layouts, simulated success/restoration, and
-polling persistence. When axe-core is installed, it also checks WCAG A/AA rules.
-The harness blocks external requests and HTTP mutations. Browser checks supplement
-the API and Python tests; automated checks alone do not establish complete
-accessibility conformance or replace usability testing with participants.
+`src/patchpilot/static/scripts/verify-website.mjs` checks public URL boundaries,
+session/CSRF handling, fill-only samples, unknown PHP, and partial-failure retention
+using a fetch test double. It makes no live target or Anthropic requests.
 
-## Screens
+`scripts/verify-ui.cjs` checks landing/deep-link routes, the default public form,
+fill-only sample behavior, keyboard/modal behavior, 320/768/1024/1440px layouts,
+simulated lab success/restoration, and polling persistence. With axe-core installed,
+it also checks WCAG A/AA rules. The guarded harness blocks external requests and
+HTTP mutations, so it cannot start a real website scan, model call, or lab repair.
+Automated checks do not establish complete accessibility conformance or replace
+usability testing with participants.
 
-[Landing page](screens/landing.png) · [Live dashboard](screens/dashboard.png) ·
-[Mobile dashboard](screens/dashboard-mobile.png) ·
-[Actual assessment review](screens/assessment.png) ·
+## Recorded evidence and historical screens
+
+The [demo guide](../demo/demo-script.md#recorded-live-website-acceptance) records the
+2026-10-24 browser-driven assessment of `http://php.testsparker.com/`: fresh HTTP
+200 evidence, six findings, three validated Anthropic recommendations, actual
+stream updates, and returned provider metadata. That record is separate from the
+guarded/test-double browser checks and from deployment-repair acceptance.
+
+The following screenshots document the earlier local repair workspace:
+
+[Earlier landing page](screens/landing.png) ·
+[Repair-lab overview](screens/dashboard.png) ·
+[Repair-lab mobile overview](screens/dashboard-mobile.png) ·
+[Local fixture assessment](screens/assessment.png) ·
 [Historical repair evidence](screens/report.png)
 
-The assessment screenshot shows a real local PHP 8.3.35 observation. The report
-shows a previously completed run and carries its historical-result notice; the
-current fixture baseline remains unpatched until a new repair is approved.
+The local assessment screenshot shows PHP 8.3.35. The repair report carries a
+historical-result notice; it does not describe the new public URL assessment or
+prove a current remote deployment was patched.
 
-## Recorded validation
+The current guarded harness passed 19 checks on 2026-10-24, including the default
+public form, sample fill-only behavior, retained website draft/focus, keyboard skip,
+and 320/768/1024/1440px layout/accessibility checks, alongside all retained lab
+workflows. Axe was enabled and reported no tested WCAG A/AA violations. Console
+and page errors, external requests, and HTTP writes were empty. The harness did
+not start a real public assessment or Anthropic request.
 
-On 2026-10-24, the interface passed 18 browser checks at 320/768/1024/1440px,
-including keyboard review/cancel, simulated success/restoration, readable mobile
-tables, and draft/disclosure/checkbox/scroll persistence through polling. Axe
-reported no WCAG 2/2.1 A/AA violations in the tested screens; browser console and
-page errors were empty. The guarded harness made no external requests or HTTP
-writes. Its screenshots remain in the ignored `var/ui-qa-final/` directory.
-
-Separately, a real UI session prepared the local fleet, selected a registered URL,
-reviewed actual PHP 8.3.35 assessment evidence, and canceled before repair. The
-deterministic Python suite passed 148 tests; API contract checks, five mock
-scenarios, all 20 JavaScript syntax checks, and the package build also passed.
+The earlier repair-lab interface milestone passed 18 guarded browser checks at
+320/768/1024/1440px on 2026-10-24, with no reported axe WCAG 2/2.1 A/AA violations,
+console errors, external requests, or HTTP writes. That historical result predates
+the default public website flow and is retained here as historical context.

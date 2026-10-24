@@ -3,10 +3,12 @@ import { createMockApi } from "./mock.js";
 import { isMockRequestedInUrl } from "./util.js";
 import { getUi, patchUi } from "./state.js";
 import { normalizeSite, normalizeRun, normalizeEvent } from "./live.js";
+import { validateWebsiteReport } from "./website.js";
 
 let mockApi;
 let liveForced = false;
 let csrfToken = null;
+let sessionPromise = null;
 let liveHealth = null;
 let knownRuns = [];
 const assessments = new Map();
@@ -48,13 +50,44 @@ async function fetchJson(path, init = {}) {
     return payload;
 }
 
-async function mutate(path, body = {}, headers = {}) {
-    if (!csrfToken) {
-        const session = await fetchJson("/api/session");
+async function ensureSession() {
+    if (csrfToken) { return; }
+    sessionPromise ??= fetchJson("/api/session").then((session) => {
         if (!session?.csrfToken) { throw new Error("The backend did not establish an operator session."); }
         csrfToken = session.csrfToken;
-    }
+    }).finally(() => { sessionPromise = null; });
+    await sessionPromise;
+}
+
+async function mutate(path, body = {}, headers = {}) {
+    await ensureSession();
     return fetchJson(path, { method: "POST", headers: { "X-CSRF-Token": csrfToken, ...headers }, body: JSON.stringify(body) });
+}
+
+// Public website assessments always use the real API, independently of lab mock mode.
+export async function createWebsiteAssessment(url) {
+    const result = await mutate("/api/website-assessments", { url });
+    if (!result?.assessmentId) { throw new Error("The backend did not return a website assessment ID. Refresh assessment history before retrying."); }
+    return result;
+}
+
+export async function getWebsiteAssessment(assessmentId) {
+    await ensureSession();
+    return validateWebsiteReport(await fetchJson(`/api/website-assessments/${encodeURIComponent(assessmentId)}`));
+}
+
+export async function getWebsiteAssessmentHistory() {
+    await ensureSession();
+    const result = await fetchJson("/api/website-assessments");
+    if (!Array.isArray(result?.items)) { throw new Error("Invalid website assessment history response."); }
+    return result.items.map(validateWebsiteReport);
+}
+
+export async function getWebsiteExamples() {
+    await ensureSession();
+    const result = await fetchJson("/api/website-assessments/examples");
+    if (!Array.isArray(result?.items)) { throw new Error("Invalid public sample list response."); }
+    return result.items;
 }
 
 async function listRuns() {

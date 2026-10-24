@@ -188,7 +188,7 @@ async function mockReady(page, scenario = null) {
     const query = `?mock=1${scenario ? `&scenario=${scenario}` : ""}`;
     await page.goto(`${origin}/dashboard${query}#/fleet`, { waitUntil: "networkidle" });
     await page.locator("#registered-site-url").waitFor({ state: "visible" });
-    await page.getByText(/simulated (demo data|walkthrough)|simulation.*no real/i).first().waitFor({ state: "visible" });
+    await page.getByText(/simulated (demo data|walkthrough)|repair lab.*simulated|simulation.*no real/i).first().waitFor({ state: "visible" });
     assert.equal(new URL(page.url()).searchParams.get("mock"), "1", "Mutating QA must remain in explicit mock mode");
 }
 
@@ -282,7 +282,7 @@ async function mockWorkflow(page, scenario = null) {
     } else {
         assert(/patched\s*(?:&|and|\+)\s*verified|repair verified|successfully verified/i.test(text), "Report did not expose the successful mock outcome");
     }
-    await page.getByText(/simulated (demo data|walkthrough)|simulation.*no real/i).first().waitFor({ state: "visible" });
+    await page.getByText(/simulated (demo data|walkthrough)|repair lab.*simulated|simulation.*no real/i).first().waitFor({ state: "visible" });
     await accessibility(page, `report-${scenario || "success"}`);
     await responsive(page, `report-${scenario || "success"}`);
     await persistentDisclosure(page);
@@ -299,7 +299,7 @@ async function main() {
             await landing.page.locator('body[data-page="landing"]').waitFor();
             const open = landing.page.getByRole("link", { name: "Open dashboard", exact: true }).first();
             assert.equal(new URL(await open.getAttribute("href"), origin).pathname, "/dashboard");
-            const explore = landing.page.getByRole("link", { name: "Explore simulated walkthrough", exact: true }).first();
+            const explore = landing.page.getByRole("link", { name: "Explore repair lab simulation", exact: true }).first();
             const target = new URL(await explore.getAttribute("href"), origin);
             assert.equal(target.pathname, "/dashboard");
             assert.equal(target.searchParams.get("mock"), "1");
@@ -318,12 +318,40 @@ async function main() {
         }, landing.page);
         await check("walkthrough navigation", async () => {
             await landing.page.goto(`${origin}/`, { waitUntil: "networkidle" });
-            await landing.page.getByRole("link", { name: "Explore simulated walkthrough", exact: true }).first().click();
+            await landing.page.getByRole("link", { name: "Explore repair lab simulation", exact: true }).first().click();
             await landing.page.locator("#registered-site-url").waitFor();
             assert.equal(new URL(landing.page.url()).pathname, "/dashboard");
             assert.equal(new URL(landing.page.url()).searchParams.get("mock"), "1");
         }, landing.page);
     } finally { await landing.context.close(); }
+
+    const website = await newPage();
+    try {
+        await check("default public website view and fill-only sample", async () => {
+            await website.page.goto(`${origin}/dashboard`, { waitUntil: "networkidle" });
+            await website.page.getByRole("heading", { name: "Website assessment", exact: true }).waitFor();
+            const input = website.page.locator("#website-url");
+            await input.waitFor({ state: "visible" });
+            assert.equal(await website.page.locator("#registered-site-url").count(), 0,
+                "The default task must not be the preconfigured fixture form");
+            assert.equal(await website.page.locator(".aside").isVisible(), false,
+                "Repair preparation controls must stay separate from website assessment");
+            const before = website.requests.length;
+            await website.page.getByRole("button", { name: "Invicti PHP test site", exact: true }).click();
+            assert.equal(await input.inputValue(), "http://php.testsparker.com/", "Public example should fill the real URL form");
+            assert.equal(await website.page.evaluate(() => document.activeElement?.id), "website-url", "Sample selection should focus the URL field");
+            await website.page.waitForTimeout(pollWindowMs);
+            assert.equal(await input.inputValue(), "http://php.testsparker.com/", "Website draft must survive polling");
+            assert.equal(await website.page.evaluate(() => document.activeElement?.id), "website-url", "Website draft focus must survive polling");
+            assert(!website.requests.slice(before).some(request => !["GET", "HEAD", "OPTIONS"].includes(request.method)),
+                "A sample button must not start a scan or mutation");
+            assert(!website.requests.some(request => /^\/api\/(health|sites|prepare|runs)(?:\/|$)/.test(new URL(request.url).pathname)),
+                "Public assessment must not depend on fixture readiness");
+            await accessibility(website.page, "website-default");
+            await responsive(website.page, "website-default");
+            await keyboardSkip(website.page);
+        }, website.page);
+    } finally { await website.context.close(); }
 
     const compatibility = await newPage();
     try {

@@ -80,7 +80,7 @@ def get_api_router(
     async def health(request: Request):
         control: OperationControl = request.app.state.control
         result = await _service(request).health()
-        return {**result, "busy": control.active is not None, "activeOperation": control.active}
+        return {**result, "websiteAssessmentAvailable": True, "busy": control.active is not None, "activeOperation": control.active}
 
     @router.get("/sites")
     async def sites(request: Request):

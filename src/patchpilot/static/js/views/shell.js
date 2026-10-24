@@ -5,8 +5,10 @@
 import { el, text, clearElement } from "../util.js";
 import { icon } from "../icons.js";
 
-export function renderHeader(root, { advisory, busy, mockMode, health }) {
+export function renderHeader(root, { advisory, busy, mockMode, health, route, websiteReport, websiteSubmitting, websiteLoading }) {
     clearElement(root);
+    const website = route === "scan";
+    const isBusy = website ? websiteSubmitting || ["QUEUED", "COLLECTING", "ANALYZING"].includes(websiteReport?.state) : busy;
     const simulation = mockMode || health?.mode === "SIMULATION";
     root.append(el("div", { className: "header__brand" }, [
         el("a", { className: "wordmark", attrs: { href: "/", "aria-label": "PatchPilot home" } }, [
@@ -15,18 +17,19 @@ export function renderHeader(root, { advisory, busy, mockMode, health }) {
         el("span", { className: "header__workspace" }, "Security workspace"),
     ]), el("div", { className: "header__meta" }, [
         el("a", { className: "header__guide", attrs: { href: "/#workflow" } }, "Product guide", icon("book")),
-        el("span", { className: `chip ${simulation ? "chip--simulation" : ""}` }, simulation ? "Simulated demo data" : health?.mode === "REAL" ? "Real local fixtures" : "Connecting"),
-        el("span", { className: `busy-indicator ${busy ? "busy-indicator--active" : ""}` }, [
+        el("span", { className: `chip ${!website && simulation ? "chip--simulation" : ""}` }, website ? "Public website assessment" : simulation ? "Repair lab · simulated" : health?.mode === "REAL" ? "Repair lab · local fixtures" : "Connecting to repair lab"),
+        el("span", { className: `busy-indicator ${isBusy ? "busy-indicator--active" : ""}` }, [
             el("span", { className: "busy-indicator__dot", attrs: { "aria-hidden": "true" } }),
-            busy ? "In progress" : health?.ready && health?.prepared ? "Ready" : "Setup needed"]),
+            website ? websiteSubmitting ? "Starting…" : websiteLoading ? "Loading records" : websiteReport?.state === "COMPLETED" ? "Assessment completed" : websiteReport?.state === "FAILED" ? "Assessment stopped" : websiteReport ? "In progress" : "Ready" : busy ? "In progress" : health?.ready && health?.prepared ? "Ready" : "Setup needed"]),
     ]));
 }
 
 export function renderNav(root, { route, onNavigate, health }) {
     clearElement(root);
     const items = [
-        { id: "fleet", label: "Overview", symbol: "grid" },
-        { id: "events", label: "Activity log", symbol: "activity" },
+        { id: "scan", label: "Website assessment", symbol: "shield" },
+        { id: "fleet", label: "Repair lab", symbol: "grid" },
+        { id: "events", label: "Lab activity", symbol: "activity" },
     ];
     if (["MOCK", "SIMULATION"].includes(health?.mode)) {
         items.push({ id: "metrics", label: "Demo insights", symbol: "code" }, { id: "recipes", label: "Recipe memory", symbol: "book" });
@@ -56,8 +59,8 @@ export function renderNav(root, { route, onNavigate, health }) {
         }),
     );
     root.append(el("span", { className: "nav__section-label" }, "Workspace"), list,
-        el("div", { className: "nav__assurance" }, [icon("shield"), el("strong", {}, "You stay in control"),
-            el("p", {}, "Review every change. Keep the proof.")]),
+        el("div", { className: "nav__assurance" }, [icon("shield"), el("strong", {}, "Evidence before conclusions"),
+            el("p", {}, "Fresh public responses. Clear coverage. Review every suggested fix.")]),
         el("a", { className: "nav__help", attrs: { href: "/#faq" } }, [icon("info"), "Help & product scope"]));
 }
 
