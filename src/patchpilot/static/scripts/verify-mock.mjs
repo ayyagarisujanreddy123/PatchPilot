@@ -194,6 +194,6 @@ for (const line of lines) {
 }
 
 console.log("");
-console.log("Manual only: open ?mock=1 in browser, demo controls UI, 380px width, keyboard nav, live POST /api/reset when backend exists.");
+console.log("Browser checks: open ?mock=1, review demo controls, narrow layouts, and keyboard navigation. Live reset uses POST /api/resets and its status resource.");
 
 process.exit(failed ? 1 : 0);

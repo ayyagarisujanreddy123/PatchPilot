@@ -1,9 +1,11 @@
 """Tests for Task 15: Scoped fleet reset preserving run records."""
+
 import json
-from pathlib import Path
+
 import pytest
-from patchpilot.runtime.reset import FleetResetManager
+
 from patchpilot.runtime.deployment import DockerRuntimeAdapter
+from patchpilot.runtime.reset import FleetResetManager
 
 
 def test_fleet_manifest_valid():
@@ -17,9 +19,10 @@ def test_fleet_manifest_valid():
     assert "clinic-b" in site_ids
 
 
-def test_fleet_reset_preserves_run_records(tmp_path):
-    mgr = FleetResetManager()
-    
+@pytest.mark.docker
+def test_fleet_reset_preserves_run_records(isolated_workspace):
+    mgr = FleetResetManager(isolated_workspace)
+
     # Create a dummy run record in var/runs/
     workspace_root = mgr.workspace_root
     runs_dir = workspace_root / "var" / "runs" / "test-run-preservation"
@@ -39,7 +42,7 @@ def test_fleet_reset_preserves_run_records(tmp_path):
         assert saved_data["test"] == "keep-me"
 
         # Verify that all 4 sites are now running at baseline
-        adapter = DockerRuntimeAdapter()
+        adapter = DockerRuntimeAdapter(isolated_workspace)
         for site in mgr.load_fleet_manifest():
             snap = adapter.inspect(site)
             assert snap.php_version.startswith("8.3.35")

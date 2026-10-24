@@ -5,6 +5,7 @@
 import { WORKFLOW_STAGES } from "../mock.js";
 import { clearElement, el, formatDuration } from "../util.js";
 import { planSourceLabel, renderPlanSourceBadge, renderStatusBadge } from "./badges.js";
+import { renderLiveRun } from "./liveRun.js";
 
 const CHECK_ORDER = [
     "serving_runtime",
@@ -339,7 +340,7 @@ export function renderRun(root, snapshot, handlers) {
 
     const back = el(
         "a",
-        { className: "link-button run-back", attrs: { href: "#/fleet" } },
+        { className: "link-button run-back", attrs: { href: "#/fleet", id: "run-back" } },
         "← Back to fleet",
     );
     back.addEventListener("click", (ev) => {
@@ -361,6 +362,7 @@ export function renderRun(root, snapshot, handlers) {
                 className: "btn btn--secondary",
                 attrs: {
                     type: "button",
+                    id: "detail-level-toggle",
                     role: "switch",
                     "aria-checked": ownerMode ? "true" : "false",
                     "aria-labelledby": "mode-toggle-label",
@@ -370,7 +372,7 @@ export function renderRun(root, snapshot, handlers) {
         ),
     ]);
     modeToggle.querySelector("button").addEventListener("click", handlers.onToggleMode);
-    root.append(modeToggle);
+    if (!run?.isLiveRecord) { root.append(modeToggle); }
 
     if (ui.runLoading && !run) {
         root.append(el("p", { className: "run-loading", attrs: { role: "status" } }, "Loading run record…"));
@@ -387,6 +389,11 @@ export function renderRun(root, snapshot, handlers) {
 
     if (ui.runError) {
         root.append(el("p", { className: "hint hint--disabled", attrs: { role: "status" } }, ui.runError));
+    }
+
+    if (run.isLiveRecord) {
+        renderLiveRun(root, run, snapshot.health);
+        return;
     }
 
     root.append(renderOutcomeBanner(run, site));

@@ -8,6 +8,8 @@ import pytest
 from patchpilot.runtime.deployment import find_free_port
 from patchpilot.runtime.verification import SiteVerifier
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.fixture(scope="module")
 def upload_fixtures():

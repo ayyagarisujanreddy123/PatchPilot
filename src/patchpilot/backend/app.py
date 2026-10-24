@@ -1,234 +1,201 @@
-"""FastAPI application for PatchPilot.
-
-Manages application lifespan, single background repair worker,
-API routing, standardized error responses, and static/template serving.
-"""
+"""Local real-service application with one lifespan-owned operation worker."""
 
 from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+import inspect
 import logging
-from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from patchpilot.backend.api import (
-    REGISTERED_SITES,
-    _APPROVALS,
-    FakeRepairService,
-    get_api_router,
-    worker_queue,
-)
-from patchpilot.backend.reconciliation import reconcile_interrupted_runs
+from patchpilot.backend.api import get_api_router
+from patchpilot.backend.control import OperationControl, complete_before_cancel
+from patchpilot.backend.reconciliation import TERMINAL_STATES, reconcile_interrupted_runs
 from patchpilot.backend.storage import FileEventSink, FileRecipeStore, FileRunStore
+from patchpilot.shared.contracts import RunRecord, RunState
+from patchpilot.shared.ports import RepairService
 from patchpilot.shared.settings import BASE_DIR, RECIPES_DIR, RUNS_DIR
 
-logger = logging.getLogger("patchpilot.backend.app")
-
-# Storage instances
-run_store = FileRunStore(runs_dir=RUNS_DIR)
-event_sink = FileEventSink(runs_dir=RUNS_DIR)
-recipe_store = FileRecipeStore(recipes_dir=RECIPES_DIR)
-repair_service = FakeRepairService(
-    run_store=run_store,
-    event_sink=event_sink,
-    recipe_store=recipe_store,
-    step_delay=0.05,
-)
+logger = logging.getLogger(__name__)
 
 
-async def background_repair_worker(
-    queue: asyncio.Queue[tuple[str, str, bool, str]], service: FakeRepairService
-):
-    """Lifespan-owned background worker consuming runs sequentially from worker_queue."""
-    logger.info("Background repair worker started")
+async def _failed_run(app: FastAPI, run_id: str) -> RunRecord:
+    store = app.state.run_store
+    record = await store.get_run(run_id) or RunRecord(run_id=run_id)
+    record.error = "Worker execution failed; deployment recovery is required"
+    record.evidence_complete = False
+    record.finished_at = datetime.now(timezone.utc).isoformat()
+    await store.save_run(record)
     try:
-        while True:
-            run_id, approval_id, memory_enabled, target_outcome = await queue.get()
-            approval = _APPROVALS.get(approval_id)
-            if not approval:
-                logger.error("Approval %s not found for run %s", approval_id, run_id)
-                queue.task_done()
-                continue
+        record = await app.state.repair_service.recover_interrupted(record)
+        if record.state not in TERMINAL_STATES:
+            raise RuntimeError("Recovery did not produce a terminal record")
+    except Exception:
+        record.state = RunState.RECOVERY_FAILED
+        record.error = "Worker failure could not be reconciled; operator recovery is required"
+        await store.save_run(record)
+    return record
 
-            try:
-                logger.info(
-                    "Executing run %s for approval %s (target_outcome=%s)",
-                    run_id,
-                    approval_id,
-                    target_outcome,
-                )
-                await service.run(
-                    approval=approval,
-                    memory_enabled=memory_enabled,
-                    target_outcome=target_outcome,
-                    run_id=run_id,
-                )
-            except Exception as e:
-                logger.exception("Error executing run %s: %s", run_id, e)
-            finally:
-                queue.task_done()
-    except asyncio.CancelledError:
-        logger.info("Background repair worker cancelled on shutdown")
+
+async def background_repair_worker(app: FastAPI) -> None:
+    queue = app.state.worker_queue
+    control: OperationControl = app.state.control
+    service: RepairService = app.state.repair_service
+    while True:
+        item = await queue.get()
+        if item is None:
+            queue.task_done()
+            return
+        operation_id = item["id"]
+        try:
+            if item["kind"] == "run":
+                try:
+                    approval = await service.get_approval(item["approvalId"], item["session"])
+                    record = await service.run(approval, memory_enabled=item["memoryEnabled"], run_id=operation_id, target_outcome=item["targetOutcome"])
+                    if record.state not in TERMINAL_STATES:
+                        raise RuntimeError("Service returned a nonterminal run")
+                except Exception as exc:
+                    logger.error("Repair worker failed (%s); attempting recorded recovery", type(exc).__name__)
+                    record = await _failed_run(app, operation_id)
+                if record.evidence_complete and record.state in TERMINAL_STATES and record.state != RunState.RECOVERY_FAILED:
+                    await control.release(operation_id)
+            else:
+                control.resets[operation_id] = {"resetId": operation_id, "state": "RUNNING"}
+                await control.persist()
+                try:
+                    result = await service.reset(clear_recipes=item["clearRecipes"])
+                    if result.get("state") != "COMPLETED":
+                        raise RuntimeError("Reset did not complete")
+                    control.resets[operation_id] = {**result, "resetId": operation_id, "state": "COMPLETED"}
+                    control.assessment_owners.clear()
+                except Exception as exc:
+                    logger.error("Fleet reset failed (%s)", type(exc).__name__)
+                    control.resets[operation_id] = {"resetId": operation_id, "state": "FAILED", "message": "Fleet reset failed; preparation must be checked before a repair"}
+                await control.persist()
+                await control.release(operation_id)
+        except Exception as exc:
+            logger.error("Operation persistence failed (%s); reservation retained", type(exc).__name__)
+        finally:
+            queue.task_done()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Startup: Run reconciliation stub
-    app_run_store = getattr(app.state, "run_store", run_store)
-    app_repair_service = getattr(app.state, "repair_service", repair_service)
-
-    await reconcile_interrupted_runs(run_store=app_run_store, repair_service=app_repair_service)
-
-    # 2. Start single background worker with loop-scoped queue
-    queue: asyncio.Queue[tuple[str, str, bool, str]] = asyncio.Queue()
-    app.state.worker_queue = queue
-    worker_task = asyncio.create_task(background_repair_worker(queue, app_repair_service))
-    app.state.worker_task = worker_task
-
-    yield
-
-    # 3. Shutdown: Stop background worker
-    worker_task.cancel()
+    control: OperationControl = app.state.control
+    await control.open()
     try:
-        await worker_task
-    except asyncio.CancelledError:
-        pass
+        if app.state.repair_service is None:
+            from patchpilot.core.service import RealRepairService
+            app.state.repair_service = RealRepairService(app.state.run_store, app.state.event_sink, app.state.recipe_store)
+        service = app.state.repair_service
+        await reconcile_interrupted_runs(app.state.run_store, service)
+        # Interrupted preparation/reset can be explicitly retried after process exit.
+        if control.active and control.active["kind"] != "run":
+            operation_id = control.active["id"]
+            if operation_id in control.resets:
+                control.resets[operation_id] = {"resetId": operation_id, "state": "FAILED", "message": "Controller stopped during reset; prepare the fleet again"}
+            control.active = None
+        unresolved = []
+        cursor = None
+        while True:
+            records, cursor = await app.state.run_store.list_runs(limit=100, cursor=cursor)
+            unresolved.extend(record for record in records if not record.evidence_complete or record.state not in TERMINAL_STATES or record.state == RunState.RECOVERY_FAILED)
+            if cursor is None:
+                break
+        if unresolved:
+            control.active = {"kind": "run", "id": unresolved[0].run_id}
+        elif control.active:
+            control.active = None
+        await control.persist()
+        app.state.worker_queue = asyncio.Queue()
+        task = asyncio.create_task(background_repair_worker(app))
+        app.state.worker_task = task
+        try:
+            yield
+        finally:
+            # Offloaded Docker/model work cannot be stopped by cancelling its await.
+            # Drain the current bounded operation before closing its dependencies.
+            await app.state.worker_queue.put(None)
+            try:
+                await complete_before_cancel(task)
+            finally:
+                result = service.close()
+                if inspect.isawaitable(result):
+                    await result
+    finally:
+        control.close()
 
 
 def create_app(
-    custom_run_store: Optional[FileRunStore] = None,
-    custom_event_sink: Optional[FileEventSink] = None,
-    custom_recipe_store: Optional[FileRecipeStore] = None,
-    custom_repair_service: Optional[FakeRepairService] = None,
+    custom_run_store: FileRunStore | None = None,
+    custom_event_sink: FileEventSink | None = None,
+    custom_recipe_store: FileRecipeStore | None = None,
+    custom_repair_service: RepairService | None = None,
 ) -> FastAPI:
-    app = FastAPI(
-        title="PatchPilot API",
-        version="0.1.0",
-        description="Autonomous, policy-bounded web application patching and repair platform",
-        lifespan=lifespan,
-    )
+    app = FastAPI(title="PatchPilot", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"])
+    app.state.run_store = custom_run_store or FileRunStore(RUNS_DIR)
+    app.state.event_sink = custom_event_sink or FileEventSink(app.state.run_store.runs_dir)
+    app.state.recipe_store = custom_recipe_store or FileRecipeStore(RECIPES_DIR)
+    app.state.repair_service = custom_repair_service
+    app.state.control = OperationControl(app.state.run_store.runs_dir)
+    app.include_router(get_api_router(app.state.run_store, app.state.event_sink, app.state.recipe_store))
 
-    actual_run_store = custom_run_store or run_store
-    actual_event_sink = custom_event_sink or event_sink
-    actual_recipe_store = custom_recipe_store or recipe_store
-    actual_repair_service = custom_repair_service or repair_service
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
-    app.state.run_store = actual_run_store
-    app.state.event_sink = actual_event_sink
-    app.state.recipe_store = actual_recipe_store
-    app.state.repair_service = actual_repair_service
+    def error(status_code: int, code: str, message: str, details: object = None) -> JSONResponse:
+        return JSONResponse(status_code=status_code, content={"error": {"code": code, "message": message, "details": details or {}}})
 
-    # Attach router
-    router = get_api_router(
-        actual_run_store, actual_event_sink, actual_recipe_store, actual_repair_service
-    )
-    app.include_router(router)
-
-    # Standard error handlers matching {error: {code, message, details}}
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "error": {
-                    "code": str(exc.status_code),
-                    "message": exc.detail,
-                    "details": {},
-                }
-            },
-        )
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(request: Request, exc: StarletteHTTPException):
+        return error(exc.status_code, str(exc.status_code), str(exc.detail))
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={
-                "error": {
-                    "code": "VALIDATION_ERROR",
-                    "message": "Invalid request payload",
-                    "details": exc.errors(),
-                }
-            },
-        )
+    async def validation_error(request: Request, exc: RequestValidationError):
+        return error(422, "VALIDATION_ERROR", "Invalid request payload", jsonable_encoder(exc.errors()))
+
+    @app.exception_handler(LookupError)
+    async def lookup_error(request: Request, exc: LookupError):
+        return error(404, "NOT_FOUND", str(exc))
+
+    @app.exception_handler(ValueError)
+    async def value_error(request: Request, exc: ValueError):
+        return error(400, "INVALID_REQUEST", str(exc))
+
+    @app.exception_handler(RuntimeError)
+    async def unavailable_error(request: Request, exc: RuntimeError):
+        return error(503, "UNAVAILABLE", "Operation unavailable; inspect readiness and local controller diagnostics")
 
     @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception):
-        logger.exception("Unhandled server error: %s", exc)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "error": {
-                    "code": "INTERNAL_SERVER_ERROR",
-                    "message": str(exc),
-                    "details": {},
-                }
-            },
-        )
+    async def internal_error(request: Request, exc: Exception):
+        logger.error("Unhandled controller error (%s)", type(exc).__name__)
+        return error(500, "INTERNAL_SERVER_ERROR", "Controller operation failed")
 
-    # Web UI / static serving
-    web_dir = BASE_DIR / "src" / "patchpilot" / "web"
-    static_dir = web_dir / "static"
-    templates_dir = web_dir / "templates"
+    static_dir = BASE_DIR / "src" / "patchpilot" / "static"
 
-    if static_dir.is_dir():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    @app.get("/", include_in_schema=False)
+    async def index():
+        return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-store"})
 
-    @app.get("/", response_class=HTMLResponse)
-    async def index(request: Request):
-        # Serve Teammate 4 templates if present
-        dashboard_template = templates_dir / "dashboard.html"
-        if dashboard_template.is_file():
-            from jinja2 import Environment, FileSystemLoader
-
-            jinja_env = Environment(loader=FileSystemLoader(str(templates_dir)))
-            template = jinja_env.get_template("dashboard.html")
-            context = {
-                "csrf_token": "dev-csrf-token",
-                "sites": list(REGISTERED_SITES.values()),
-            }
-            return HTMLResponse(template.render(context))
-
-        # Default placeholder HTML page when Teammate 4 UI files are not yet created
-        return HTMLResponse(
-            """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>PatchPilot — Backend & Platform</title>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
-    h1 { color: #1e3a8a; }
-    .badge { background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 16px 0; }
-    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-    ul { list-style-type: square; }
-  </style>
-</head>
-<body>
-  <h1>PatchPilot Controller <span class="badge">Running</span></h1>
-  <p>Backend & Platform engine active on Python 3.12, FastAPI, and asynchronous repair worker.</p>
-  <div class="card">
-    <h3>Registered Fleet Targets (team-plan §4)</h3>
-    <ul>
-      <li><code>pantry-a</code> (127.0.0.1:8081) — Homepage & Contact</li>
-      <li><code>pantry-b</code> (127.0.0.1:8082) — Homepage & Contact</li>
-      <li><code>clinic-a</code> (127.0.0.1:8083) — Homepage, Contact & 3 MiB Upload</li>
-      <li><code>clinic-b</code> (127.0.0.1:8084) — Homepage, Contact & 3 MiB Upload</li>
-    </ul>
-  </div>
-  <div class="card">
-    <h3>API Endpoints</h3>
-    <p>Explore interactive documentation at <a href="/docs"><code>/docs</code> (Swagger UI)</a> or <a href="/redoc"><code>/redoc</code></a>.</p>
-  </div>
-</body>
-</html>"""
-        )
-
+    # Existing index.html uses relative styles.css and js/main.js URLs.
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    app.mount("/", StaticFiles(directory=static_dir), name="dashboard-assets")
     return app
 
 

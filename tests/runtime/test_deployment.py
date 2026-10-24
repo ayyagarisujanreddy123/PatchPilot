@@ -5,6 +5,8 @@ import urllib.request
 import pytest
 from patchpilot.runtime.deployment import DockerRuntimeAdapter, find_free_port
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.fixture(scope="module")
 def runtime_adapter():

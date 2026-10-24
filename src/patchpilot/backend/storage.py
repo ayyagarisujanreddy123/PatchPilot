@@ -6,8 +6,8 @@ Implements RunStore, RecipeStore, and EventSink protocols.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
+import re
 from pathlib import Path
 from typing import Optional
 import uuid
@@ -17,9 +17,34 @@ from patchpilot.shared.ports import EventSink, RecipeStore, RunStore
 from patchpilot.shared.settings import RECIPES_DIR, RUNS_DIR
 
 
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _safe_identifier(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", value):
+        raise ValueError("Invalid storage identifier")
+    return value
+
+
+def _ensure_directory(path: Path) -> None:
+    missing = []
+    current = path
+    while not current.exists():
+        missing.append(current)
+        current = current.parent
+    for directory in reversed(missing):
+        directory.mkdir(exist_ok=True)
+        _fsync_directory(directory.parent)
+
+
 def _atomic_write_text(path: Path, content: str) -> None:
     """Atomically write text content using a temporary file and os.replace in the same directory."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_directory(path.parent)
     tmp_path = path.parent / f".{path.name}.tmp.{uuid.uuid4().hex}"
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
@@ -27,6 +52,7 @@ def _atomic_write_text(path: Path, content: str) -> None:
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp_path, path)
+        _fsync_directory(path.parent)
     except Exception:
         if tmp_path.exists():
             try:
@@ -43,14 +69,17 @@ class FileRunStore(RunStore):
         self.runs_dir = Path(runs_dir)
 
     def _run_path(self, run_id: str) -> Path:
-        return self.runs_dir / run_id / "run.json"
+        return self.runs_dir / _safe_identifier(run_id) / "run.json"
 
     async def get_run(self, run_id: str) -> Optional[RunRecord]:
         path = self._run_path(run_id)
         if not path.is_file():
             return None
         content = await asyncio.to_thread(path.read_text, encoding="utf-8")
-        return RunRecord.model_validate_json(content)
+        try:
+            return RunRecord.model_validate_json(content)
+        except ValueError:
+            raise RuntimeError("A run snapshot is unreadable; recovery is required") from None
 
     async def save_run(self, record: RunRecord) -> None:
         path = self._run_path(record.run_id)
@@ -63,7 +92,7 @@ class FileRunStore(RunStore):
         if not self.runs_dir.is_dir():
             return [], None
 
-        run_dirs = [d for d in self.runs_dir.iterdir() if d.is_dir()]
+        run_dirs = [d for d in self.runs_dir.iterdir() if d.is_dir() and not d.name.startswith(".")]
         # Sort by mtime descending (most recent first) or directory name
         run_dirs.sort(
             key=lambda d: (d / "run.json").stat().st_mtime if (d / "run.json").exists() else 0,
@@ -85,8 +114,8 @@ class FileRunStore(RunStore):
                 try:
                     content = await asyncio.to_thread(run_file.read_text, encoding="utf-8")
                     runs.append(RunRecord.model_validate_json(content))
-                except Exception:
-                    continue
+                except (ValueError, OSError):
+                    raise RuntimeError("A run snapshot is unreadable; recovery is required") from None
 
         next_cursor = None
         if start_idx + limit < len(run_dirs):
@@ -102,7 +131,7 @@ class FileRecipeStore(RecipeStore):
         self.recipes_dir = Path(recipes_dir)
 
     def _recipe_path(self, recipe_id: str) -> Path:
-        return self.recipes_dir / f"{recipe_id}.json"
+        return self.recipes_dir / f"{_safe_identifier(recipe_id)}.json"
 
     async def get_recipe(self, recipe_id: str) -> Optional[Recipe]:
         path = self._recipe_path(recipe_id)
@@ -156,7 +185,7 @@ class FileEventSink(EventSink):
         self._global_lock = asyncio.Lock()
 
     def _events_path(self, run_id: str) -> Path:
-        return self.runs_dir / run_id / "events.ndjson"
+        return self.runs_dir / _safe_identifier(run_id) / "events.ndjson"
 
     async def _get_lock(self, run_id: str) -> asyncio.Lock:
         async with self._global_lock:
@@ -169,14 +198,28 @@ class FileEventSink(EventSink):
         path = self._events_path(run_id)
 
         async with lock:
-            path.parent.mkdir(parents=True, exist_ok=True)
+            _ensure_directory(path.parent)
             line = event.model_dump_json(by_alias=True) + "\n"
 
             def _append():
+                maximum = 0
+                if path.exists():
+                    for existing_line in path.read_text(encoding="utf-8").splitlines():
+                        if existing_line.strip():
+                            try:
+                                previous = RunEvent.model_validate_json(existing_line)
+                            except ValueError:
+                                raise RuntimeError("Run journal is unreadable; recovery is required") from None
+                            if previous.sequence != maximum + 1:
+                                raise RuntimeError("Run journal sequence is invalid")
+                            maximum = previous.sequence
+                if event.sequence != maximum + 1:
+                    raise ValueError("Run events must have consecutive unique sequence numbers")
                 with open(path, "a", encoding="utf-8") as f:
                     f.write(line)
                     f.flush()
                     os.fsync(f.fileno())
+                _fsync_directory(path.parent)
 
             await asyncio.to_thread(_append)
 
@@ -199,13 +242,13 @@ class FileEventSink(EventSink):
                         continue
                     try:
                         ev = RunEvent.model_validate_json(line)
-                        if ev.sequence > max_seq:
-                            max_seq = ev.sequence
+                        if ev.sequence != max_seq + 1:
+                            raise RuntimeError("Run journal sequence is invalid")
+                        max_seq = ev.sequence
                         if ev.sequence > after_sequence:
                             events.append(ev)
-                    except Exception:
-                        # Skip incomplete lines from concurrent appends
-                        continue
+                    except ValueError:
+                        raise RuntimeError("Run journal is unreadable; recovery is required") from None
             paged = events[:limit]
             next_seq = paged[-1].sequence if paged else max_seq
             return paged, next_seq

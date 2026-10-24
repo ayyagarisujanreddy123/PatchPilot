@@ -5,6 +5,10 @@
 import { el } from "../util.js";
 
 const STATUS_MAP = {
+    unassessed: { label: "Ready for assessment", icon: "○", tone: "neutral" },
+    queued: { label: "Queued", icon: "◐", tone: "progress" },
+    planning: { label: "Choosing plan", icon: "◐", tone: "progress" },
+    restoring: { label: "Restoring original", icon: "↩", tone: "progress" },
     vulnerable: {
         label: "Vulnerable",
         icon: "⚠",
@@ -73,6 +77,11 @@ const STATUS_MAP = {
 };
 
 const PLAN_SOURCE_LABELS = {
+    MODEL: "Fresh model plan",
+    VERIFIED_RECIPE: "Verified recipe reuse",
+    DETERMINISTIC_FALLBACK: "Deterministic fallback",
+    SEEDED_DEMO: "Seeded demo candidate",
+    TEST_DOUBLE: "Simulation — test double",
     fresh_model: "Fresh model plan",
     fresh_model_plan: "Fresh model plan",
     verified_recipe_reuse: "Verified recipe reuse",
@@ -137,7 +146,7 @@ export function renderPlanSourceBadge(planSource) {
 }
 
 export function isRepairEligible(status) {
-    return status === "vulnerable" || status === "awaiting_approval";
+    return ["unassessed", "vulnerable", "awaiting_approval", "restored_unpatched", "candidate_rejected", "needs_help"].includes(status);
 }
 
 export function formatChecks(passed, required) {

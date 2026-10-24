@@ -4,11 +4,11 @@
 
 import { el, text, clearElement } from "../util.js";
 
-export function renderHeader(root, { advisory, busy, mockMode }) {
+export function renderHeader(root, { advisory, busy, mockMode, health }) {
     clearElement(root);
     const titleBlock = el("div", { className: "header__brand" }, [
         el("h1", { className: "header__title" }, "PatchPilot"),
-        el("p", { className: "header__tagline" }, "Self-healing security for small businesses"),
+        el("p", { className: "header__tagline" }, "Assess, approve, and verify repairs for registered local PHP sites"),
     ]);
 
     const chipParts = [];
@@ -24,7 +24,7 @@ export function renderHeader(root, { advisory, busy, mockMode }) {
             className: "chip chip--advisory",
             attrs: { role: "status", "aria-label": "Active advisory" },
         },
-        chipParts.length ? chipParts.join(" · ") : "Advisory not loaded",
+        chipParts.length ? chipParts.join(" · ") : "Controlled PHP fixture assessment",
     );
 
     const busyIndicator = el(
@@ -39,13 +39,12 @@ export function renderHeader(root, { advisory, busy, mockMode }) {
         },
         [
             el("span", { className: "busy-indicator__dot", attrs: { "aria-hidden": "true" } }),
-            el("span", { className: "busy-indicator__label" }, busy ? "Busy" : "Ready"),
+            el("span", { className: "busy-indicator__label" }, busy ? "Busy" : health?.ready && health?.prepared ? "Ready" : "Setup required"),
         ],
     );
 
-    const mockBadge = mockMode
-        ? el("span", { className: "chip chip--mock" }, "Demo data")
-        : null;
+    const mockBadge = el("span", { className: "chip chip--mock" },
+        mockMode ? "Simulated demo data" : health?.mode === "SIMULATION" ? "Simulation — no real repair" : health?.mode === "REAL" ? "Real local fixtures" : "Connecting");
 
     root.append(
         titleBlock,

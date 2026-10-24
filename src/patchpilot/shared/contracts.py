@@ -192,6 +192,8 @@ class RunRecord(ContractModel):
     provenance: Optional[dict[str, Any]] = None
     durations: Optional[dict[str, int]] = None
     cleanup_result: Optional[dict[str, Any]] = None
+    checkpoint: Optional[dict[str, Any]] = None
+    evidence_complete: bool = False
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     created_at: Optional[str] = None

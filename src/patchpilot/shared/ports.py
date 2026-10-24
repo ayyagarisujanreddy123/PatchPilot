@@ -9,6 +9,8 @@ from typing import Any, Optional, Protocol, runtime_checkable
 
 from patchpilot.shared.contracts import (
     Approval,
+    Assessment,
+    AssessmentApprovalItem,
     CandidateSpec,
     CheckResult,
     DeploymentSnapshot,
@@ -24,7 +26,28 @@ from patchpilot.shared.contracts import (
 class RepairService(Protocol):
     """Core repair engine service protocol (implemented by Sujan)."""
 
-    async def run(self, approval: Approval, memory_enabled: bool = True) -> RunRecord:
+    async def list_sites(self) -> list[SiteManifest]: ...
+
+    async def assess(self, site_id: str) -> Assessment: ...
+
+    async def approve(
+        self, items: list[AssessmentApprovalItem], policy_revision: str, operator_session: str
+    ) -> Approval: ...
+
+    async def get_approval(self, approval_id: str, operator_session: str) -> Approval: ...
+
+    async def health(self) -> dict[str, Any]: ...
+
+    async def prepare(self) -> dict[str, Any]: ...
+
+    async def reset(self, clear_recipes: bool = False) -> dict[str, Any]: ...
+
+    def close(self) -> Any: ...
+
+    async def run(
+        self, approval: Approval, memory_enabled: bool = True, *, run_id: str,
+        target_outcome: Optional[str] = None,
+    ) -> RunRecord:
         """Execute bounded state transitions for approved sites."""
         ...
 

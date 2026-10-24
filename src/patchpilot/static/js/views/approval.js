@@ -1,168 +1,114 @@
-/**
- * Owner-friendly approval drawer before a repair starts.
- */
-
+/** Review actual assessment scope before creating an approval. */
 import { clearElement, el } from "../util.js";
 import { renderPlanSourceBadge } from "./badges.js";
 
-const MITIGATION_NOTE =
-    "session.upload_progress.enabled=0 is kept as a separate conservative mitigation (CVE-2026-115560).";
-const AUTHORITY_NOTE =
-    "PatchPilot only acts on this authorized, registered local site.";
-
-function renderConfigList(configEntries) {
-    if (!configEntries?.length) {
-        return el("p", { className: "approval__muted" }, "—");
-    }
-    return el(
-        "ul",
-        { className: "approval__config-list" },
-        configEntries.map((row) =>
-            el("li", {}, `${row.key ?? "—"} = ${row.value ?? "—"}`),
-        ),
-    );
+function formatValue(value) {
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
 
-function renderChecklist(site, plan) {
-    const items = [
-        { label: "Homepage loads with your organization content", required: true },
-        { label: "Contact form accepts valid input and rejects invalid input", required: true },
-    ];
-    if (site?.type === "upload") {
-        items.push({
-            label: "File upload accepts a real 3 MiB test file (byte count and hash verified)",
-            required: true,
-        });
-    }
-    return el(
-        "ul",
-        { className: "approval__checklist" },
-        items.map((item) =>
-            el("li", {}, [
-                el("span", { attrs: { "aria-hidden": "true" } }, "☑ "),
-                item.label,
-            ]),
-        ),
-    );
+function renderAssessment(assessment, sites) {
+    const site = sites.find((item) => item.id === assessment.siteId);
+    const runtime = assessment.currentRuntime ?? {};
+    const mitigation = runtime.uploadProgressEnabled;
+    const mitigationSummary = mitigation === false || mitigation === 0 || mitigation === "0"
+        ? "upload progress disabled" : mitigation === true || mitigation === 1 || mitigation === "1"
+            ? "upload progress enabled" : "upload progress setting not recorded";
+    return el("section", { className: "evidence-section" }, [
+        el("h3", {}, site?.org_name ?? assessment.siteId),
+        el("p", {}, `${site?.address ?? assessment.siteId} · ${assessment.applicability}`),
+        el("h4", {}, "Observed serving runtime"),
+        el("p", {}, `PHP ${runtime.phpVersion ?? "not recorded"} · ${runtime.sapi ?? "SAPI not recorded"} · ${mitigationSummary}`),
+        el("details", { id: `assessment-runtime-${assessment.siteId}` }, [
+            el("summary", { id: `assessment-runtime-summary-${assessment.siteId}` }, "Technical runtime evidence"),
+            el("pre", {}, formatValue(runtime)),
+        ]),
+        el("h4", {}, "Proposed changes"),
+        el("ul", {}, (assessment.proposedChanges ?? []).map((change) => el("li", {}, formatValue(change)))),
+        el("h4", {}, "Required verification"),
+        el("ul", {}, (assessment.requiredChecks ?? []).map((check) => el("li", {}, formatValue(check)))),
+        assessment.blockedReason ? el("p", { className: "hint hint--disabled", attrs: { role: "status" } }, assessment.blockedReason) : null,
+    ]);
+}
+
+function renderMockPlan(plan, site) {
+    return el("div", {}, [
+        el("p", { className: "approval__note" }, "Simulated assessment and repair playback. These values are not measurements of a running site."),
+        renderPlanSourceBadge(plan?.plan_source),
+        el("p", {}, site?.org_name ?? "Demo site"),
+        el("h3", {}, "Proposed changes"),
+        el("p", {}, plan?.target_image ?? "Loading demo plan…"),
+        el("pre", {}, JSON.stringify(plan?.config ?? [], null, 2)),
+        el("p", {}, plan?.rationale ?? ""),
+    ]);
 }
 
 export function renderApproval(root, snapshot, handlers) {
+    const wasOpen = root.dataset.open === "true";
     clearElement(root);
-    const { ui, sites, busy, advisory } = snapshot;
-    const siteId = ui.approvalSiteId;
-    if (!siteId) {
+    const { ui, sites, busy } = snapshot;
+    if (!ui.approvalSiteId) {
         root.hidden = true;
         root.removeAttribute("data-open");
         return;
     }
     root.hidden = false;
     root.dataset.open = "true";
-
-    const site = sites.find((s) => s.id === siteId);
     const plan = ui.approvalPlan;
-    const fixedVersion = advisory?.fixed_version ?? plan?.target_php_version ?? "8.3.36";
-    const observedPhp = site?.php_version ?? "8.3.x";
-
-    const finding =
-        plan?.finding_plain ??
-        `Your site runs PHP ${observedPhp}, which has a known critical issue. A fix (${fixedVersion}) is available.`;
-
-    const overlay = el("button", {
-        className: "drawer-overlay",
-        attrs: { type: "button", "aria-label": "Close approval panel" },
-    });
+    const scope = ui.approvalSiteIds ?? [ui.approvalSiteId];
+    const disabled = busy || ui.approvalLoading || ui.approvalSubmitting || !plan || plan.canRepair === false;
+    const overlay = el("button", { className: "drawer-overlay", attrs: { type: "button", "aria-label": "Close assessment review", tabindex: "-1" } });
     overlay.addEventListener("click", handlers.closeApproval);
-
-    const closeBtn = el(
-        "button",
-        {
-            className: "drawer__close",
-            attrs: { type: "button", "aria-label": "Cancel approval" },
-        },
-        "×",
-    );
-    closeBtn.addEventListener("click", handlers.closeApproval);
-
-    const planBadge = plan?.plan_source ? renderPlanSourceBadge(plan.plan_source) : null;
-
-    const approveDisabled = busy;
-    const approveBtn = el(
-        "button",
-        {
-            className: "btn btn--primary",
-            attrs: {
-                type: "button",
-                id: "approval-approve-btn",
-                disabled: approveDisabled ? "disabled" : undefined,
-            },
-        },
-        "Approve repair",
-    );
-    if (!approveDisabled) {
-        approveBtn.addEventListener("click", () => handlers.onApprove(siteId));
+    const close = el("button", { className: "drawer__close", attrs: { id: "approval-close", type: "button", "aria-label": "Cancel approval", disabled: ui.approvalSubmitting ? "disabled" : undefined } }, "×");
+    close.addEventListener("click", handlers.closeApproval);
+    const approve = el("button", { className: "btn btn--primary", attrs: { id: "approval-approve-btn", type: "button", disabled: disabled ? "disabled" : undefined } }, ui.approvalSubmitting ? "Submitting approved scope…" : `Approve repair${scope.length > 1 ? ` for ${scope.length} sites` : ""}`);
+    approve.addEventListener("click", () => handlers.onApprove(ui.approvalSiteId));
+    const cancel = el("button", { className: "btn btn--secondary", attrs: { type: "button", id: "approval-cancel", disabled: ui.approvalSubmitting ? "disabled" : undefined } }, "Cancel");
+    cancel.addEventListener("click", handlers.closeApproval);
+    const body = el("div", { className: "drawer__body" }, [
+        el("p", { id: "approval-scope" }, `Repair scope: ${scope.map((id) => sites.find((site) => site.id === id)?.org_name ?? id).join(", ")}.`),
+        scope.length > 1 ? el("p", { className: "approval__note" }, "The backend repairs this approved fleet sequentially, with fresh checks for each site.") : null,
+    ]);
+    if (ui.approvalLoading) {
+        body.append(el("p", { attrs: { role: "status" } }, "Inspecting registered sites and checking the configured PHP policy…"));
+    } else if (plan?.live) {
+        if (plan.simulation) { body.append(el("p", { className: "approval__note" }, "Simulation — this backend does not modify or verify real sites.")); }
+        for (const assessment of plan.assessments) { body.append(renderAssessment(assessment, sites)); }
+        body.append(el("p", { className: "approval__note" }, `Approval is bound to these assessment fingerprints and policy ${plan.policyRevision}. Only registered local targets are included.`));
+    } else if (plan) {
+        body.append(renderMockPlan(plan, sites.find((site) => site.id === ui.approvalSiteId)));
     }
-
-    const cancelBtn = el(
-        "button",
-        { className: "btn btn--secondary", attrs: { type: "button" } },
-        "Cancel",
-    );
-    cancelBtn.addEventListener("click", handlers.closeApproval);
-
-    const drawer = el(
-        "div",
-        {
-            className: "drawer",
-            attrs: {
-                role: "dialog",
-                "aria-modal": "true",
-                "aria-labelledby": "approval-title",
-                "aria-describedby": "approval-finding",
-            },
-        },
-        [
-            el("header", { className: "drawer__header" }, [
-                el("h2", { id: "approval-title", className: "drawer__title" }, "Review repair plan"),
-                closeBtn,
-            ]),
-            el("div", { className: "drawer__body" }, [
-                el("p", { className: "approval__org" }, site?.org_name ?? siteId),
-                el("p", { id: "approval-finding", className: "approval__finding" }, finding),
-                planBadge,
-                el("h3", { className: "approval__section-title" }, "Proposed changes"),
-                el("dl", { className: "approval__dl" }, [
-                    el("div", {}, [el("dt", {}, "Target image"), el("dd", {}, plan?.target_image ?? "—")]),
-                    el("div", {}, [
-                        el("dt", {}, "Configuration profile"),
-                        el("dd", {}, renderConfigList(plan?.config)),
-                    ]),
-                    el("div", {}, [el("dt", {}, "Why this plan"), el("dd", {}, plan?.rationale ?? "—")]),
-                ]),
-                el("h3", { className: "approval__section-title" }, "Website functions that must keep working"),
-                renderChecklist(site, plan),
-                el("p", { className: "approval__note" }, MITIGATION_NOTE),
-                el("p", { className: "approval__note approval__note--authority" }, AUTHORITY_NOTE),
-                busy
-                    ? el("p", { className: "hint hint--disabled" }, "Repair actions are disabled while busy.")
-                    : null,
-            ].filter(Boolean)),
-            el("footer", { className: "drawer__footer" }, [cancelBtn, approveBtn]),
-        ],
-    );
-
+    if (ui.approvalError) {
+        body.append(el("p", { className: "hint hint--disabled", attrs: { role: "alert" } }, ui.approvalError));
+        if (!plan) {
+            const retry = el("button", { className: "btn btn--secondary", attrs: { type: "button", disabled: ui.approvalSubmitting ? "disabled" : undefined } }, "Reassess this scope");
+            retry.addEventListener("click", handlers.onRetry);
+            body.append(retry);
+        } else {
+            body.append(el("p", { className: "hint" }, "Retrying approval keeps the same run submission key. Cancel and reassess if the backend reports a stale assessment."));
+        }
+    }
+    const drawer = el("div", { className: "drawer", attrs: { role: "dialog", "aria-modal": "true", "aria-labelledby": "approval-title", "aria-describedby": "approval-scope" } }, [
+        el("header", { className: "drawer__header" }, [el("h2", { id: "approval-title", className: "drawer__title" }, "Review security assessment"), close]),
+        body, el("footer", { className: "drawer__footer" }, [cancel, approve]),
+    ]);
     root.append(overlay, drawer);
-
-    requestAnimationFrame(() => {
-        const focusTarget = drawer.querySelector("#approval-approve-btn:not([disabled])")
-            ?? drawer.querySelector(".drawer__close");
-        focusTarget?.focus();
-    });
+    if (!wasOpen) { requestAnimationFrame(() => document.getElementById("approval-close")?.focus()); }
 }
 
 export function bindApprovalEscape(handler) {
-    const onKey = (ev) => {
-        if (ev.key === "Escape") {
-            handler();
+    const onKey = (event) => {
+        if (event.key === "Escape") { handler(); }
+        if (event.key === "Tab") {
+            const dialog = document.querySelector("#approval-root [role=dialog]");
+            const controls = [...(dialog?.querySelectorAll("button:not([disabled]), a[href], input:not([disabled]), [tabindex='0']") ?? [])];
+            if (!controls.length) { event.preventDefault(); return; }
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+                event.preventDefault(); last.focus();
+            } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+                event.preventDefault(); first.focus();
+            }
         }
     };
     document.addEventListener("keydown", onKey);

@@ -22,7 +22,9 @@ import {
     isMockMode,
     enableMockModeFromUi,
     postReset,
+    postPrepare,
 } from "./api.js";
+import { matchRegisteredUrl } from "./live.js";
 import {
     renderBackendBanner,
     renderHeader,
@@ -43,6 +45,13 @@ const POLL_IDLE_MS = 4000;
 let pollTimer = null;
 let approvalEscapeUnbind = null;
 let lastFocusedBeforeApproval = null;
+let assessmentRequest = 0;
+
+function restoreApprovalFocus() {
+    const previous = lastFocusedBeforeApproval;
+    (previous?.id ? document.getElementById(previous.id) : previous)?.focus?.();
+    lastFocusedBeforeApproval = null;
+}
 
 function parseRoute() {
     const hash = window.location.hash.replace(/^#/, "") || "/fleet";
@@ -66,6 +75,7 @@ function navigate(route, siteId = null) {
         window.location.hash = `#/${route}`;
         patchUi({ route, selectedSiteId: null, runLoading: false, runError: null });
     }
+    requestAnimationFrame(() => document.getElementById("app-main")?.focus({ preventScroll: true }));
 }
 
 function anySiteActive(sites) {
@@ -101,28 +111,31 @@ function shouldPollFast(snapshot) {
 }
 
 async function loadApprovalPlan(siteId) {
+    const request = ++assessmentRequest;
     if (!siteId) {
         patchUi({ approvalPlan: null });
         return;
     }
     try {
-        const plan = await getPlanPreview(siteId);
-        if (getState().ui.approvalSiteId === siteId) {
-            patchUi({ approvalPlan: plan });
+        patchUi({ approvalLoading: true, approvalError: null });
+        const plan = await getPlanPreview(getState().ui.approvalSiteIds ?? [siteId]);
+        if (request === assessmentRequest && getState().ui.approvalSiteId === siteId) {
+            patchUi({ approvalPlan: plan, approvalLoading: false });
         }
-    } catch {
-        if (getState().ui.approvalSiteId === siteId) {
-            patchUi({ approvalPlan: null });
+    } catch (err) {
+        if (request === assessmentRequest && getState().ui.approvalSiteId === siteId) {
+            patchUi({ approvalPlan: null, approvalLoading: false, approvalError: err.message });
         }
     }
 }
 
 function openApproval(siteId) {
-    if (getState().busy) {
+    const snapshot = getState();
+    if (snapshot.busy || snapshot.ui.preparing || snapshot.ui.resetting || (!isMockMode() && (!snapshot.health?.ready || !snapshot.health?.prepared))) {
         return;
     }
     lastFocusedBeforeApproval = document.activeElement;
-    patchUi({ approvalSiteId: siteId, repairQueue: [], approvalPlan: null });
+    patchUi({ approvalSiteId: siteId, approvalSiteIds: [siteId], repairQueue: [], approvalPlan: null, approvalLoading: true, approvalError: null });
     loadApprovalPlan(siteId);
 }
 
@@ -134,31 +147,36 @@ function startRepairAll(siteIds) {
     const [first, ...rest] = siteIds;
     patchUi({
         approvalSiteId: first,
-        repairQueue: rest,
+        approvalSiteIds: isMockMode() ? [first] : siteIds,
+        repairQueue: isMockMode() ? rest : [],
         approvalPlan: null,
+        approvalLoading: true,
+        approvalError: null,
     });
     loadApprovalPlan(first);
 }
 
 function closeApproval() {
+    if (getState().ui.approvalSubmitting) { return; }
+    assessmentRequest += 1;
     patchUi({
         approvalSiteId: null,
         approvalPlan: null,
+        approvalSiteIds: [],
+        approvalError: null,
         repairQueue: [],
     });
-    if (lastFocusedBeforeApproval?.focus) {
-        lastFocusedBeforeApproval.focus();
-    }
-    lastFocusedBeforeApproval = null;
+    restoreApprovalFocus();
 }
 
 async function onApprove(siteId) {
     const { ui } = getState();
-    if (getState().busy) {
+    if (getState().busy || ui.approvalSubmitting || ui.approvalLoading) {
         return;
     }
     try {
-        await approveAndRepair(siteId, { seedFault: ui.seedFault });
+        patchUi({ approvalSubmitting: true, approvalError: null });
+        const result = await approveAndRepair(ui.approvalSiteIds ?? [siteId], { seedFault: ui.seedFault, plan: ui.approvalPlan });
         await refreshState();
         await refreshEvents();
         const queue = getState().ui.repairQueue;
@@ -166,19 +184,20 @@ async function onApprove(siteId) {
             const [next, ...rest] = queue;
             patchUi({
                 approvalSiteId: next,
+                approvalSiteIds: [next],
                 repairQueue: rest,
                 approvalPlan: null,
             });
             loadApprovalPlan(next);
         } else {
             patchUi({ approvalSiteId: null, approvalPlan: null });
-            if (lastFocusedBeforeApproval?.focus) {
-                lastFocusedBeforeApproval.focus();
-            }
-            lastFocusedBeforeApproval = null;
+            restoreApprovalFocus();
+            if (result?.runId) { navigate("run", siteId); }
         }
     } catch (err) {
-        patchUi({ lastErrorMessage: err?.message ?? "Approval failed" });
+        patchUi({ approvalError: err?.message ?? "Approval failed" });
+    } finally {
+        patchUi({ approvalSubmitting: false });
     }
 }
 
@@ -186,11 +205,30 @@ const fleetHandlers = {
     openApproval,
     startRepairAll,
     viewRun: (siteId) => navigate("run", siteId),
+    onPrepare: async () => {
+        if (getState().busy || getState().ui.preparing) { return; }
+        patchUi({ preparing: true, lastErrorMessage: null });
+        try {
+            await postPrepare();
+            await refreshState();
+        } catch (err) {
+            patchUi({ lastErrorMessage: err.message });
+        } finally { patchUi({ preparing: false }); }
+    },
+    onAssessUrl: (value) => {
+        try {
+            const siteId = matchRegisteredUrl(value, getState().sites);
+            patchUi({ urlError: null });
+            openApproval(siteId);
+        } catch (err) { patchUi({ urlError: err.message }); }
+    },
+    onUrlChange: (value) => patchUi({ siteUrl: value, urlError: null }),
 };
 
 const approvalHandlers = {
     closeApproval,
     onApprove,
+    onRetry: () => loadApprovalPlan(getState().ui.approvalSiteId),
 };
 
 const runHandlers = {
@@ -217,9 +255,10 @@ async function reloadAllEvents() {
 }
 
 async function handleResetFleet(clearMemory) {
-    if (getState().busy) {
+    if (getState().busy || getState().ui.resetting) {
         return;
     }
+    patchUi({ resetting: true, lastErrorMessage: null });
     try {
         await postReset({ clear_memory: Boolean(clearMemory) });
         closeApproval();
@@ -229,6 +268,8 @@ async function handleResetFleet(clearMemory) {
         await reloadAllEvents();
     } catch (err) {
         patchUi({ lastErrorMessage: err?.message ?? "Reset failed" });
+    } finally {
+        patchUi({ resetting: false });
     }
 }
 
@@ -248,8 +289,10 @@ async function refreshState() {
             sites: data.sites ?? [],
             metrics: data.metrics ?? null,
             recipes: data.recipes ?? [],
+            recipesAvailable: data.recipesAvailable ?? false,
+            health: data.health ?? null,
         });
-        patchUi({ backendUnreachable: false, lastErrorMessage: null, loading: false });
+        patchUi({ backendUnreachable: false, loading: false });
         schedulePoll(
             shouldPollFast({
                 ...getState(),
@@ -357,6 +400,11 @@ function syncApprovalEscape(snapshot) {
 }
 
 function renderApp(snapshot) {
+    const focused = document.activeElement;
+    const focusedId = focused?.id;
+    const inputValue = focusedId === "registered-site-url" ? focused.value : null;
+    const selection = inputValue != null ? [focused.selectionStart, focused.selectionEnd] : null;
+    const disclosureState = [...document.querySelectorAll("details[id]")].map((detail) => [detail.id, detail.open]);
     const headerEl = document.getElementById("app-header");
     const navEl = document.getElementById("app-nav");
     const bannerEl = document.getElementById("backend-banner");
@@ -366,24 +414,28 @@ function renderApp(snapshot) {
 
     renderHeader(headerEl, {
         advisory: snapshot.advisory,
-        busy: snapshot.busy,
+        busy: snapshot.busy || snapshot.ui.preparing || snapshot.ui.resetting,
         mockMode: snapshot.ui.mockMode || isMockMode(),
+        health: snapshot.health,
     });
     renderNav(navEl, {
         route: snapshot.ui.route === "run" ? "fleet" : snapshot.ui.route,
         onNavigate: (r) => navigate(r),
     });
     renderBackendBanner(bannerEl, {
-        visible: snapshot.ui.backendUnreachable,
+        visible: snapshot.ui.backendUnreachable || Boolean(snapshot.ui.lastErrorMessage),
         message: snapshot.ui.lastErrorMessage,
         onUseDemo: () => {
+            patchState({ runs: {} });
+            replaceEvents([]);
+            resetEventsScrollTracking();
             enableMockModeFromUi();
             refreshState();
             refreshEvents();
         },
     });
 
-    mainEl.setAttribute("aria-busy", snapshot.busy ? "true" : "false");
+    mainEl.setAttribute("aria-busy", snapshot.busy || snapshot.ui.preparing || snapshot.ui.resetting ? "true" : "false");
     renderMainPanel(mainEl, snapshot);
     if (snapshot.ui.route === "events") {
         afterRenderEvents(snapshot);
@@ -404,6 +456,20 @@ function renderApp(snapshot) {
     const demoRoot = document.getElementById("demo-controls-root");
     if (demoRoot) {
         renderDemoControls(demoRoot, snapshot, demoHandlers);
+    }
+    for (const [id, open] of disclosureState) {
+        const replacement = document.getElementById(id);
+        if (replacement?.tagName === "DETAILS") { replacement.open = open; }
+    }
+    if (focusedId) {
+        const replacement = document.getElementById(focusedId);
+        if (replacement && !replacement.disabled) {
+            if (inputValue != null) { replacement.value = inputValue; }
+            replacement.focus({ preventScroll: true });
+            if (selection && replacement.setSelectionRange) {
+                replacement.setSelectionRange(...selection);
+            }
+        }
     }
 }
 
@@ -458,6 +524,7 @@ async function boot() {
 
         await refreshState();
         await refreshEvents();
+        await refreshRunIfNeeded();
         renderApp(getState());
     } catch (err) {
         showBootError(err);

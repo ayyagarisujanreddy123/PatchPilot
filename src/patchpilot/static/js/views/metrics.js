@@ -257,7 +257,9 @@ export function renderMetrics(root, snapshot) {
         el(
             "p",
             { className: "panel__lede" },
-            "Measured values from completed and in-progress runs. Missing fields are not estimated.",
+            ["MOCK", "SIMULATION"].includes(snapshot.health?.mode)
+                ? "Simulated demonstration values. These are not measurements of running websites."
+                : "Measured values from completed and in-progress runs. Missing fields are not estimated.",
         ),
     );
 
@@ -267,7 +269,7 @@ export function renderMetrics(root, snapshot) {
     }
 
     if (metrics == null) {
-        root.append(el("p", { className: "empty-state" }, "No metrics reported yet."));
+        root.append(el("p", { className: "empty-state" }, "Aggregate metrics are not exposed by this API. Open a run to inspect its recorded checks, security results, recovery, and planning provenance."));
         return;
     }
 

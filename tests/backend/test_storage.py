@@ -121,3 +121,34 @@ async def test_recipe_store_matching_and_clear(recipe_store: FileRecipeStore):
     cleared = await recipe_store.clear_recipes()
     assert cleared == 1
     assert await recipe_store.get_recipe("rec-compat-1") is None
+
+
+@pytest.mark.asyncio
+async def test_storage_rejects_path_escape_and_duplicate_journal_sequence(run_store, event_sink, recipe_store):
+    with pytest.raises(ValueError, match="identifier"):
+        await run_store.get_run("../../outside")
+    with pytest.raises(ValueError, match="identifier"):
+        await recipe_store.get_recipe("../../outside")
+    event = RunEvent(sequence=1, timestamp="2026-10-24T12:00:00Z", state=RunState.QUEUED, message="First event")
+    await event_sink.append_event("run-sequence", event)
+    with pytest.raises(ValueError, match="sequence"):
+        await event_sink.append_event("run-sequence", event)
+    assert len((await event_sink.get_events("run-sequence"))[0]) == 1
+
+
+@pytest.mark.asyncio
+async def test_corrupt_snapshot_blocks_recovery_instead_of_disappearing(run_store):
+    path = run_store.runs_dir / "run-corrupt" / "run.json"
+    path.parent.mkdir(parents=True)
+    path.write_text('{"unfinished":', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="unreadable"):
+        await run_store.list_runs()
+
+
+@pytest.mark.asyncio
+async def test_corrupt_journal_is_not_silently_omitted(event_sink):
+    path = event_sink.runs_dir / "run-torn-journal" / "events.ndjson"
+    path.parent.mkdir(parents=True)
+    path.write_text('{"partial":', encoding="utf-8")
+    with pytest.raises(RuntimeError, match="unreadable"):
+        await event_sink.get_events("run-torn-journal")

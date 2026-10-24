@@ -1,223 +1,115 @@
-"""Integration and endpoint tests for FastAPI application and FakeRepairService."""
+"""Owner workflow against explicitly simulated execution and real API guards."""
 
 import time
-from pathlib import Path
+
 import pytest
-from fastapi.testclient import TestClient
-from patchpilot.backend.api import FakeRepairService
-from patchpilot.backend.app import create_app
-from patchpilot.backend.storage import FileEventSink, FileRecipeStore, FileRunStore
-from patchpilot.shared.contracts import RunState
+
+def approve(client, site_id="clinic-a"):
+    assessment = client.post("/api/assessments", json={"siteId": site_id})
+    assert assessment.status_code == 200
+    item = assessment.json()
+    response = client.post("/api/approvals", json={
+        "assessments": [{"assessmentId": item["assessmentId"], "fingerprint": item["fingerprint"]}],
+        "policyRevision": item["policyRevision"],
+    })
+    assert response.status_code == 200
+    assert response.json()["siteIds"] == [site_id]
+    assert "operatorSession" not in response.json()
+    return response.json()
 
 
-@pytest.fixture
-def client(tmp_path: Path):
-    runs_dir = tmp_path / "runs"
-    recipes_dir = tmp_path / "recipes"
-    r_store = FileRunStore(runs_dir=runs_dir)
-    e_sink = FileEventSink(runs_dir=runs_dir)
-    rec_store = FileRecipeStore(recipes_dir=recipes_dir)
-    rep_service = FakeRepairService(
-        run_store=r_store,
-        event_sink=e_sink,
-        recipe_store=rec_store,
-        step_delay=0.001,
-    )
-    app = create_app(
-        custom_run_store=r_store,
-        custom_event_sink=e_sink,
-        custom_recipe_store=rec_store,
-        custom_repair_service=rep_service,
-    )
-    with TestClient(app) as test_client:
-        yield test_client
+def wait_run(client, run_id):
+    for _ in range(200):
+        record = client.get(f"/api/runs/{run_id}").json()
+        if record["state"] in {"VERIFIED", "REJECTED", "RESTORED", "BLOCKED", "INTERRUPTED", "RECOVERY_FAILED"} and record["evidenceComplete"]:
+            return record
+        time.sleep(0.005)
+    raise AssertionError(f"Run did not finish: {record}")
 
 
-def test_endpoints_happy_path(client: TestClient):
-    """Test standard owner journey: sites -> assessment -> approval -> run -> events -> report -> reset."""
-    # 1. GET /
-    index_resp = client.get("/")
-    assert index_resp.status_code == 200
-    assert "PatchPilot Controller" in index_resp.text
+def test_owner_flow_serves_dashboard_and_preserves_target(client):
+    assert '<title>PatchPilot</title>' in client.get("/").text
+    assert client.get("/styles.css").status_code == 200
+    assert client.get("/js/main.js").status_code == 200
+    assert client.get("/static/js/main.js").status_code == 200
+    assert client.get("/api/health").json()["mode"] == "SIMULATION"
+    assert len(client.get("/api/sites").json()["items"]) == 4
+    approval = approve(client)
+    response = client.post("/api/runs", json={"approvalId": approval["approvalId"]}, headers={"Idempotency-Key": "owner-flow"})
+    assert response.status_code == 202
+    run_id = response.json()["runId"]
+    record = wait_run(client, run_id)
+    assert record["state"] == "VERIFIED"
+    assert record["siteIds"] == ["clinic-a"]
+    assert record["planSource"] == "TEST_DOUBLE"
+    assert any("SIMULATION" in warning for warning in record["warnings"])
+    events = client.get(f"/api/runs/{run_id}/events").json()
+    assert [event["sequence"] for event in events["items"]] == list(range(1, len(events["items"]) + 1))
+    assert events["nextSequence"] == len(events["items"])
+    assert all(event["siteId"] in {None, "clinic-a"} for event in events["items"])
+    report = client.get(f"/api/runs/{run_id}/report").json()
+    assert report["provenance"] == {"source": "TEST_DOUBLE", "simulation": True}
+    assert report["securityResults"] == {}
+    assert report["changes"] == []
 
-    # 2. GET /api/sites
-    sites_resp = client.get("/api/sites")
-    assert sites_resp.status_code == 200
-    sites = sites_resp.json()
-    assert len(sites["items"]) == 4
-    site_ids = [s["siteId"] for s in sites["items"]]
-    assert "pantry-a" in site_ids
-    assert "clinic-a" in site_ids
 
-    # 3. POST /api/sites/pantry-a/assessments
-    ass_resp = client.post("/api/sites/pantry-a/assessments")
-    assert ass_resp.status_code == 200
-    ass = ass_resp.json()
-    assert ass["siteId"] == "pantry-a"
-    assert ass["canRepair"] is True
-    assert "assessmentId" in ass
-    assert "fingerprint" in ass
+def test_errors_are_structured(client):
+    for path in ("/api/runs/unknown", "/api/resets/unknown"):
+        response = client.get(path)
+        assert response.status_code == 404
+        assert response.json()["error"]["message"]
+    assert client.post("/api/assessments", json={"siteId": "unregistered"}).status_code == 404
+    response = client.post("/api/approvals", json={"invalidField": 1})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert isinstance(response.json()["error"]["details"], list)
 
-    # 4. POST /api/approvals
-    app_resp = client.post(
-        "/api/approvals",
-        json={
-            "assessments": [{"assessmentId": ass["assessmentId"], "fingerprint": ass["fingerprint"]}],
-            "policyRevision": "2026-018-rev1",
-        },
-    )
-    assert app_resp.status_code == 200
-    approval = app_resp.json()
-    approval_id = approval["approvalId"]
-    assert approval["recoveryAuthority"] is True
 
-    # 5. POST /api/runs (202 Accepted)
-    run_resp = client.post(
-        "/api/runs",
-        json={
-            "approvalId": approval_id,
-            "memoryEnabled": True,
-            "targetOutcome": "success",
-        },
-    )
-    assert run_resp.status_code == 202
-    run_data = run_resp.json()
-    run_id = run_data["runId"]
-    assert run_data["statusUrl"] == f"/api/runs/{run_id}"
+@pytest.mark.parametrize("outcome,state", [("reject_staging", "REJECTED"), ("restore_activation", "RESTORED")])
+def test_simulated_failure_never_reports_real_security_success(client, outcome, state):
+    approval = approve(client, "pantry-a")
+    response = client.post("/api/runs", json={"approvalId": approval["approvalId"], "targetOutcome": outcome}, headers={"Idempotency-Key": outcome})
+    record = wait_run(client, response.json()["runId"])
+    assert record["state"] == state
+    report = client.get(response.json()["statusUrl"] + "/report").json()
+    assert report["securityResults"] == {}
+    assert report["changes"] == []
+    if state == "RESTORED":
+        assert "unpatched" in record["error"]
 
-    # Poll status until VERIFIED
-    final_state = None
-    for _ in range(40):
-        time.sleep(0.08)
-        r = client.get(f"/api/runs/{run_id}")
-        assert r.status_code == 200
-        curr = r.json()["state"]
-        if curr == "VERIFIED":
-            final_state = curr
+
+def test_multiple_assessments_keep_exact_sites(client):
+    items = [client.post(f"/api/sites/{site}/assessments").json() for site in ("clinic-b", "pantry-b")]
+    approval = client.post("/api/approvals", json={"assessments": [{"assessmentId": item["assessmentId"], "fingerprint": item["fingerprint"]} for item in items], "policyRevision": items[0]["policyRevision"]})
+    assert approval.json()["siteIds"] == ["clinic-b", "pantry-b"]
+    run = client.post("/api/runs", json={"approvalId": approval.json()["approvalId"]}, headers={"Idempotency-Key": "fleet-selection"})
+    record = wait_run(client, run.json()["runId"])
+    assert set(record["siteResults"]) == {"clinic-b", "pantry-b"}
+    assert all(result["outcome"] == "VERIFIED" for result in record["siteResults"].values())
+
+
+def test_forged_assessments_and_changed_policy_are_rejected(client):
+    assessment = client.post("/api/assessments", json={"siteId": "clinic-a"}).json()
+    body = {"assessments": [{"assessmentId": assessment["assessmentId"], "fingerprint": "forged"}], "policyRevision": assessment["policyRevision"]}
+    assert client.post("/api/approvals", json=body).status_code == 400
+    body["assessments"][0]["fingerprint"] = assessment["fingerprint"]
+    body["policyRevision"] = "forged"
+    assert client.post("/api/approvals", json=body).status_code == 400
+    assert client.post("/api/approvals", json={"assessments": [], "policyRevision": "simulation-v1"}).status_code == 422
+    body["assessments"][0]["assessmentId"] = "unknown"
+    assert client.post("/api/approvals", json=body).status_code == 404
+
+
+def test_prepare_and_reset_have_real_operation_status(client, run_store):
+    assert client.post("/api/prepare", json={}).json()["state"] == "COMPLETED"
+    assert client.get("/api/health").json()["prepared"] is True
+    response = client.post("/api/resets", json={"clearRecipes": True})
+    assert response.status_code == 202
+    for _ in range(100):
+        status = client.get(response.json()["statusUrl"]).json()
+        if status["state"] in {"COMPLETED", "FAILED"}:
             break
-    assert final_state == "VERIFIED"
-
-    # 6. GET /api/runs (list)
-    runs_list_resp = client.get("/api/runs")
-    assert runs_list_resp.status_code == 200
-    assert any(item["runId"] == run_id for item in runs_list_resp.json()["items"])
-
-    # 7. GET /api/runs/{runId}/events
-    events_resp = client.get(f"/api/runs/{run_id}/events?after=0")
-    assert events_resp.status_code == 200
-    events_data = events_resp.json()
-    items = events_data["items"]
-    assert len(items) >= 7
-    assert [e["sequence"] for e in items] == list(range(1, len(items) + 1))
-    assert events_data["nextSequence"] == items[-1]["sequence"]
-
-    # 8. GET /api/runs/{runId}/report
-    report_resp = client.get(f"/api/runs/{run_id}/report")
-    assert report_resp.status_code == 200
-    report = report_resp.json()
-    assert report["runId"] == run_id
-    assert report["state"] == "VERIFIED"
-    assert "markdown" in report
-
-    # 9. POST & GET /api/resets
-    reset_resp = client.post("/api/resets", json={"clearRecipes": True})
-    assert reset_resp.status_code == 202
-    reset_id = reset_resp.json()["resetId"]
-
-    get_reset = client.get(f"/api/resets/{reset_id}")
-    assert get_reset.status_code == 200
-    assert get_reset.json()["state"] == "COMPLETED"
-
-
-def test_error_envelopes(client: TestClient):
-    """Verify 404 and 422 error shapes strictly follow {error: {code, message, details}}."""
-    # 404 unknown site
-    resp_site_404 = client.post("/api/sites/unknown-site-404/assessments")
-    assert resp_site_404.status_code == 404
-    body = resp_site_404.json()
-    assert "error" in body
-    assert body["error"]["code"] == "404"
-    assert "not a registered target" in body["error"]["message"]
-
-    # 404 unknown run
-    resp_run_404 = client.get("/api/runs/non-existent-run-id")
-    assert resp_run_404.status_code == 404
-    body = resp_run_404.json()
-    assert "error" in body
-    assert body["error"]["code"] == "404"
-
-    # 404 unknown reset
-    resp_reset_404 = client.get("/api/resets/non-existent-reset-id")
-    assert resp_reset_404.status_code == 404
-    body = resp_reset_404.json()
-    assert "error" in body
-    assert body["error"]["code"] == "404"
-
-    # 422 malformed request payload
-    resp_422 = client.post("/api/approvals", json={"invalidField": 999})
-    assert resp_422.status_code == 422
-    body = resp_422.json()
-    assert "error" in body
-    assert body["error"]["code"] == "VALIDATION_ERROR"
-    assert isinstance(body["error"]["details"], list)
-
-
-def test_fake_service_staging_rejection(client: TestClient):
-    """Verify fake service failure branch simulates staging rejection resulting in REJECTED state."""
-    app_resp = client.post("/api/approvals", json={"assessments": [], "policyRevision": "rev1"})
-    approval_id = app_resp.json()["approvalId"]
-
-    run_resp = client.post(
-        "/api/runs",
-        json={"approvalId": approval_id, "targetOutcome": "reject_staging"},
-    )
-    assert run_resp.status_code == 202
-    run_id = run_resp.json()["runId"]
-
-    final_state = None
-    for _ in range(40):
-        time.sleep(0.08)
-        r = client.get(f"/api/runs/{run_id}")
-        curr = r.json()["state"]
-        if curr in ("REJECTED", "VERIFIED", "RESTORED"):
-            final_state = curr
-            break
-
-    assert final_state == "REJECTED"
-
-    # Verify event trail
-    ev_resp = client.get(f"/api/runs/{run_id}/events?after=0")
-    states = [e["state"] for e in ev_resp.json()["items"]]
-    assert "REVISING" in states
-    assert states[-1] == "REJECTED"
-
-
-def test_fake_service_activation_restoration(client: TestClient):
-    """Verify fake service failure branch simulates live failure resulting in RESTORED state."""
-    app_resp = client.post("/api/approvals", json={"assessments": [], "policyRevision": "rev1"})
-    approval_id = app_resp.json()["approvalId"]
-
-    run_resp = client.post(
-        "/api/runs",
-        json={"approvalId": approval_id, "targetOutcome": "restore_activation"},
-    )
-    assert run_resp.status_code == 202
-    run_id = run_resp.json()["runId"]
-
-    final_state = None
-    for _ in range(40):
-        time.sleep(0.08)
-        r = client.get(f"/api/runs/{run_id}")
-        curr = r.json()["state"]
-        if curr in ("RESTORED", "VERIFIED", "REJECTED"):
-            final_state = curr
-            break
-
-    assert final_state == "RESTORED"
-
-    # Verify event trail
-    ev_resp = client.get(f"/api/runs/{run_id}/events?after=0")
-    states = [e["state"] for e in ev_resp.json()["items"]]
-    assert "LIVE_VERIFYING" in states
-    assert "RESTORING" in states
-    assert states[-1] == "RESTORED"
+        time.sleep(0.005)
+    assert status["state"] == "COMPLETED"
+    assert status["clearedRecipes"] == 0
+    assert client.get("/api/health").json()["busy"] is False

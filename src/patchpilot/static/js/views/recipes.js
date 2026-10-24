@@ -91,12 +91,19 @@ export function renderRecipes(root, snapshot) {
         el(
             "p",
             { className: "panel__lede" },
-            "Verified repair knowledge committed after activation checks pass. Compatibility keys exclude organization names and instance IDs.",
+            snapshot.health?.mode === "MOCK"
+                ? "Simulated recipe memory used by the demo playback. No real verification is claimed."
+                : "Verified repair knowledge committed after activation checks pass. Compatibility keys exclude organization names and instance IDs.",
         ),
     );
 
     if (ui.loading) {
         root.append(el("p", { className: "panel__status", attrs: { role: "status" } }, "Loading recipes…"));
+        return;
+    }
+
+    if (snapshot.recipesAvailable === false) {
+        root.append(el("p", { className: "empty-state" }, "Recipe browsing is not exposed by this API. Run reports show the actual plan source and reuse evidence when recorded."));
         return;
     }
 

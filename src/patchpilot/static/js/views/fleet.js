@@ -78,11 +78,12 @@ function renderSiteCard(site, handlers, { busy, disabledReason }) {
             className: "btn btn--primary",
             attrs: {
                 type: "button",
+                id: `assess-site-${site.id}`,
                 disabled: repairDisabled ? "disabled" : undefined,
                 "aria-disabled": repairDisabled ? "true" : "false",
             },
         },
-        "Approve & repair",
+        "Assess & review repair",
     );
     if (canRepair) {
         repairBtn.addEventListener("click", () => handlers.openApproval(site.id));
@@ -92,7 +93,7 @@ function renderSiteCard(site, handlers, { busy, disabledReason }) {
         "a",
         {
             className: "btn btn--ghost",
-            attrs: { href: `#/run/${site.id}` },
+            attrs: { href: `#/run/${site.id}`, id: `view-run-${site.id}` },
         },
         "View run",
     );
@@ -144,14 +145,40 @@ function renderSiteCard(site, handlers, { busy, disabledReason }) {
 
 export function renderFleet(root, snapshot, handlers) {
     clearElement(root);
-    const { sites, metrics, busy, ui } = snapshot;
-    const disabledReason = BUSY_REASON;
+    const { sites, metrics, busy, ui, health } = snapshot;
+    const setupNeeded = !health?.ready || !health?.prepared;
+    const disabledReason = busy ? BUSY_REASON : "Prepare the registered fixtures before assessing a repair.";
+    const actionsDisabled = busy || ui.preparing || ui.resetting || setupNeeded;
 
     root.append(el("h2", { className: "panel__title" }, "Fleet overview"));
-    root.append(renderSummaryBar(metrics));
+    root.append(el("p", { className: "panel__lede" }, "Assess the configured PHP security policy, review the proposed changes, and approve an exact repair scope. This prototype operates on registered local fixtures."));
+    if (metrics) { root.append(renderSummaryBar(metrics)); }
+    const urlInput = el("input", { id: "registered-site-url", className: "registered-url__input", attrs: {
+        type: "text", inputmode: "url", placeholder: sites[0]?.address ?? "http://127.0.0.1:8081", required: "required",
+        "aria-describedby": "registered-url-help", autocomplete: "url",
+    } });
+    urlInput.value = ui.siteUrl ?? "";
+    urlInput.addEventListener("input", () => handlers.onUrlChange(urlInput.value));
+    const urlForm = el("form", { className: "registered-url" }, [
+        el("label", { attrs: { for: "registered-site-url" } }, "Registered site URL"),
+        el("div", { className: "registered-url__row" }, [urlInput,
+            el("button", { className: "btn btn--primary", attrs: { id: "assess-url", type: "submit", disabled: actionsDisabled ? "disabled" : undefined } }, "Assess site")]),
+        el("p", { id: "registered-url-help", className: "hint" }, "Only configured local addresses are accepted. Other websites require an authorized hosting connection."),
+    ]);
+    urlForm.addEventListener("submit", (event) => { event.preventDefault(); handlers.onAssessUrl(urlInput.value.trim()); });
+    if (ui.urlError) { urlForm.append(el("p", { className: "hint hint--disabled", attrs: { role: "alert" } }, ui.urlError)); }
+    root.append(urlForm);
+    if (health?.mode !== "MOCK") {
+        const prepare = el("button", { className: "btn btn--secondary", attrs: { id: "prepare-fixtures", type: "button", disabled: busy || ui.preparing || ui.resetting || health?.dockerAvailable === false ? "disabled" : undefined } }, ui.preparing ? "Preparing fixtures…" : "Prepare local fixtures");
+        prepare.addEventListener("click", handlers.onPrepare);
+        root.append(el("div", { className: "fixture-readiness", attrs: { role: "status" } }, [
+            el("p", {}, ui.preparing ? "Starting the registered project fixtures. Preparation may take a few minutes." : health?.message ?? (health?.prepared ? "Local fixtures are prepared." : "Prepare the registered local fixtures to begin.")),
+            !health?.prepared ? prepare : null,
+        ]));
+    }
 
     const eligibleIds = sites.filter((s) => isRepairEligible(s.status)).map((s) => s.id);
-    const repairAllDisabled = busy || eligibleIds.length === 0;
+    const repairAllDisabled = actionsDisabled || eligibleIds.length === 0;
 
     const repairAllBtn = el(
         "button",
@@ -159,10 +186,11 @@ export function renderFleet(root, snapshot, handlers) {
             className: "btn btn--primary btn--wide",
             attrs: {
                 type: "button",
+                id: "assess-fleet",
                 disabled: repairAllDisabled ? "disabled" : undefined,
             },
         },
-        "Approve & repair all",
+        "Assess & review fleet repair",
     );
     if (!repairAllDisabled) {
         repairAllBtn.addEventListener("click", () => handlers.startRepairAll(eligibleIds));
@@ -193,7 +221,7 @@ export function renderFleet(root, snapshot, handlers) {
         { className: "site-grid", attrs: { role: "list" } },
         sites.map((site) =>
             el("div", { className: "site-grid__cell", attrs: { role: "listitem" } }, [
-                renderSiteCard(site, handlers, { busy, disabledReason }),
+                renderSiteCard(site, handlers, { busy: actionsDisabled, disabledReason }),
             ]),
         ),
     );

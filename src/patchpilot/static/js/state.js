@@ -11,7 +11,13 @@ const initialUi = {
     demoControlsOpen: false,
     seedFault: false,
     approvalSiteId: null,
+    approvalSiteIds: [],
+    approvalLoading: false,
+    approvalSubmitting: false,
+    approvalError: null,
     approvalPlan: null,
+    preparing: false,
+    urlError: null,
     repairQueue: [],
     backendUnreachable: false,
     mockMode: false,
@@ -28,6 +34,8 @@ let state = {
     sites: [],
     metrics: null,
     recipes: [],
+    recipesAvailable: false,
+    health: null,
     runs: {},
     events: [],
     lastEventId: 0,
@@ -79,7 +87,8 @@ export function appendEvents(newEvents) {
     if (!newEvents?.length) {
         return;
     }
-    const merged = [...state.events, ...newEvents];
+    const merged = [...new Map([...state.events, ...newEvents].map((event) => [event.id, event])).values()]
+        .sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
     const last = merged[merged.length - 1];
     state = {
         ...state,
@@ -115,6 +124,8 @@ export function resetStoreForMock() {
         sites: [],
         metrics: null,
         recipes: [],
+        recipesAvailable: true,
+        health: { mode: "MOCK", ready: true, prepared: true },
         runs: {},
         events: [],
         lastEventId: 0,

@@ -10,7 +10,8 @@ const RESET_CONFIRM =
 export function renderDemoControls(root, snapshot, handlers) {
     clearElement(root);
     const { busy, ui } = snapshot;
-    const disabled = busy;
+    const disabled = busy || ui.preparing || ui.resetting || ui.approvalSubmitting;
+    const mock = snapshot.health?.mode === "MOCK";
 
     const seedId = "demo-seed-fault";
     const clearMemoryId = "demo-clear-memory";
@@ -43,11 +44,12 @@ export function renderDemoControls(root, snapshot, handlers) {
             className: "btn btn--secondary demo-controls__reset",
             attrs: {
                 type: "button",
+                id: "reset-fleet",
                 disabled: disabled ? "disabled" : undefined,
                 "aria-disabled": disabled ? "true" : "false",
             },
         },
-        "Reset fleet",
+        ui.resetting ? "Resetting project fleet…" : "Reset fleet",
     );
     resetBtn.addEventListener("click", () => {
         if (disabled) {
@@ -85,7 +87,7 @@ export function renderDemoControls(root, snapshot, handlers) {
             { className: "demo-controls__intro" },
             "For hackathon demos only. Controls are disabled while a repair or reset is in progress.",
         ),
-        fieldset,
+        mock ? fieldset : el("p", { className: "demo-controls__hint" }, "Fault playback is available only in simulated demo data. Live repairs use the assessed security policy and actual verification evidence."),
         el("div", { className: "demo-controls__reset-block" }, [
             el("label", { className: "demo-controls__label", attrs: { for: clearMemoryId } }, [
                 clearMemoryCheckbox,

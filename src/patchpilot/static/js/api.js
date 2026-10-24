@@ -1,22 +1,22 @@
-/**
- * All network I/O. Swap mock vs live backend only in this module.
- */
-
+/** All network I/O and explicit mock/live selection. */
 import { createMockApi } from "./mock.js";
 import { isMockRequestedInUrl } from "./util.js";
 import { getUi, patchUi } from "./state.js";
+import { normalizeSite, normalizeRun, normalizeEvent } from "./live.js";
 
-const JSON_HEADERS = { "Content-Type": "application/json" };
-
-let mockApi = null;
+let mockApi;
 let liveForced = false;
+let csrfToken = null;
+let liveHealth = null;
+let knownRuns = [];
+const assessments = new Map();
+const latestRuns = new Map();
+const currentRunIds = new Map();
+const eventCursors = new Map();
+const pendingApprovals = new Map();
 
 function resolveMockApi() {
-    if (!mockApi) {
-        mockApi = createMockApi({
-            getUiSeedFault: () => getUi().seedFault,
-        });
-    }
+    mockApi ??= createMockApi({ getUiSeedFault: () => getUi().seedFault });
     return mockApi;
 }
 
@@ -35,79 +35,178 @@ export function enableLiveMode() {
     patchUi({ mockMode: false });
 }
 
-async function fetchJson(path, init) {
-    const response = await fetch(path, {
-        ...init,
-        headers: { ...JSON_HEADERS, ...init?.headers },
-    });
+async function fetchJson(path, init = {}) {
+    const response = await fetch(path, { credentials: "same-origin", ...init,
+        headers: { "Content-Type": "application/json", ...init.headers } });
+    const payload = response.status === 204 ? null : await response.json().catch(() => null);
     if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
+        const error = new Error(payload?.error?.message ?? `Request failed (HTTP ${response.status}).`);
+        error.status = response.status;
+        error.code = payload?.error?.code;
+        throw error;
     }
-    if (response.status === 204) {
-        return null;
+    return payload;
+}
+
+async function mutate(path, body = {}, headers = {}) {
+    if (!csrfToken) {
+        const session = await fetchJson("/api/session");
+        if (!session?.csrfToken) { throw new Error("The backend did not establish an operator session."); }
+        csrfToken = session.csrfToken;
     }
-    return response.json();
+    return fetchJson(path, { method: "POST", headers: { "X-CSRF-Token": csrfToken, ...headers }, body: JSON.stringify(body) });
+}
+
+async function listRuns() {
+    const runs = [];
+    let cursor = null;
+    const seen = new Set();
+    do {
+        const page = await fetchJson(`/api/runs?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+        if (!Array.isArray(page?.items)) { throw new Error("Invalid run-history response."); }
+        runs.push(...page.items);
+        cursor = page.nextCursor;
+        if (cursor && seen.has(cursor)) { throw new Error("Run-history pagination did not advance."); }
+        seen.add(cursor);
+    } while (cursor);
+    return runs;
 }
 
 export async function getState() {
     if (isMockMode()) {
-        return resolveMockApi().getState();
+        const data = await resolveMockApi().getState();
+        return { ...data, health: { mode: "MOCK", ready: true, prepared: true }, recipesAvailable: true };
     }
-    return fetchJson("/api/state");
+    const [health, fleet, history] = await Promise.all([
+        fetchJson("/api/health"), fetchJson("/api/sites"), listRuns(),
+    ]);
+    if (!Array.isArray(fleet?.items)) { throw new Error("Invalid registered-fleet response."); }
+    if (!["REAL", "SIMULATION"].includes(health?.mode)) { throw new Error("The backend did not identify its execution mode."); }
+    liveHealth = health;
+    knownRuns = history;
+    latestRuns.clear();
+    currentRunIds.clear();
+    const ordered = [...history].sort((a, b) => String(b.startedAt ?? b.createdAt ?? "").localeCompare(String(a.startedAt ?? a.createdAt ?? "")));
+    for (const run of ordered) {
+        for (const siteId of run.siteIds ?? []) {
+            if (!latestRuns.has(siteId)) { latestRuns.set(siteId, run); }
+        }
+    }
+    const byId = new Map(history.map((run) => [run.runId, run]));
+    const sites = fleet.items.map((site) => {
+        const active = ordered.find((run) => health.busy && !run.finishedAt && run.siteIds?.includes(site.siteId)
+            && (!health.activeOperation?.id || health.activeOperation.id === run.runId));
+        const current = active ?? (site.lastRunId ? byId.get(site.lastRunId) : null);
+        // Historical runs remain reviewable, but a reset clears current patch status.
+        if (current) { latestRuns.set(site.siteId, current); currentRunIds.set(site.siteId, current.runId); }
+        return normalizeSite(site, current, assessments.get(site.siteId));
+    });
+    return { busy: Boolean(health.busy), health, sites, advisory: null, metrics: null,
+        recipes: [], recipesAvailable: false };
 }
 
 export async function getRun(siteId) {
-    if (isMockMode()) {
-        return resolveMockApi().getRun(siteId);
-    }
-    return fetchJson(`/api/sites/${encodeURIComponent(siteId)}/run`);
+    if (isMockMode()) { return resolveMockApi().getRun(siteId); }
+    const runId = latestRuns.get(siteId)?.runId;
+    if (!runId) { return null; }
+    const [record, report] = await Promise.all([
+        fetchJson(`/api/runs/${encodeURIComponent(runId)}`),
+        fetchJson(`/api/runs/${encodeURIComponent(runId)}/report`),
+    ]);
+    latestRuns.set(siteId, record);
+    return { ...normalizeRun(record, report, siteId), historical: currentRunIds.get(siteId) !== runId };
 }
 
 export async function getEvents(since) {
-    if (isMockMode()) {
-        return resolveMockApi().getEvents(since);
+    if (isMockMode()) { return resolveMockApi().getEvents(since); }
+    if (since === 0) { eventCursors.clear(); }
+    const events = [];
+    const nextCursors = new Map(eventCursors);
+    for (const run of knownRuns) {
+        let after = eventCursors.get(run.runId) ?? 0;
+        while (true) {
+            const page = await fetchJson(`/api/runs/${encodeURIComponent(run.runId)}/events?after=${after}&limit=100`);
+            if (!Array.isArray(page?.items)) { throw new Error("Invalid run-event response."); }
+            events.push(...page.items.map((event) => normalizeEvent(event, run.runId)));
+            const next = page.nextSequence ?? after;
+            nextCursors.set(run.runId, next);
+            if (page.items.length < 100 || next <= after) { break; }
+            after = next;
+        }
     }
-    const q = since != null ? `?since=${encodeURIComponent(String(since))}` : "";
-    return fetchJson(`/api/events${q}`);
+    for (const [runId, sequence] of nextCursors) { eventCursors.set(runId, sequence); }
+    return events.sort((a, b) => String(a.ts).localeCompare(String(b.ts)) || a.sequence - b.sequence);
 }
 
-// UI calls POST /api/approve then POST /api/repair for the approved site_id (confirm with backend).
-export async function approveAndRepair(siteId, { seedFault = false } = {}) {
-    await postApprove({ site_id: siteId });
-    return postRepair({ site_ids: [siteId], seed_fault: seedFault });
+export async function getPlanPreview(scope) {
+    const siteIds = Array.isArray(scope) ? scope : [scope];
+    if (isMockMode()) { return resolveMockApi().getPlanPreview(siteIds[0]); }
+    const items = [];
+    // The backend locks assessments; inspect this explicit scope sequentially.
+    for (const siteId of siteIds) {
+        const item = await mutate("/api/assessments", { siteId });
+        if (item?.siteId !== siteId || !item.assessmentId || !item.fingerprint || !item.policyRevision) {
+            throw new Error("The assessment did not identify the requested registered site.");
+        }
+        assessments.set(siteId, item);
+        items.push(item);
+    }
+    const policyRevision = items[0]?.policyRevision;
+    if (items.some((item) => item.policyRevision !== policyRevision)) {
+        throw new Error("The security policy changed during assessment. Review the scope again.");
+    }
+    return { live: true, siteIds, assessments: items, policyRevision,
+        canRepair: items.every((item) => item.canRepair),
+        simulation: liveHealth?.mode === "SIMULATION" };
 }
 
-export async function postRepair(body) {
+export async function approveAndRepair(scope, { seedFault = false, plan } = {}) {
+    const siteIds = Array.isArray(scope) ? scope : [scope];
     if (isMockMode()) {
-        return resolveMockApi().postRepair(body);
+        for (const siteId of siteIds) { await resolveMockApi().postApprove({ site_id: siteId }); }
+        return resolveMockApi().postRepair({ site_ids: siteIds, seed_fault: seedFault });
     }
-    return fetchJson("/api/repair", { method: "POST", body: JSON.stringify(body) });
+    if (!plan?.live || !plan.canRepair || JSON.stringify(plan.siteIds) !== JSON.stringify(siteIds)) {
+        throw new Error("Review a fresh assessment for this exact site scope before approving.");
+    }
+    const scopeKey = JSON.stringify(plan.assessments.map((item) => [item.assessmentId, item.fingerprint]));
+    let pending = pendingApprovals.get(scopeKey);
+    if (!pending) {
+        const approval = await mutate("/api/approvals", {
+            assessments: plan.assessments.map(({ assessmentId, fingerprint }) => ({ assessmentId, fingerprint })),
+            policyRevision: plan.policyRevision,
+        });
+        if (!approval?.approvalId || JSON.stringify([...(approval.siteIds ?? [])].sort()) !== JSON.stringify([...siteIds].sort())) {
+            throw new Error("The backend approved a different site scope. Repair was not submitted.");
+        }
+        pending = { approval, key: crypto.randomUUID() };
+        pendingApprovals.set(scopeKey, pending);
+    }
+    const result = await mutate("/api/runs", { approvalId: pending.approval.approvalId, memoryEnabled: true }, { "Idempotency-Key": pending.key });
+    if (!result?.runId) { throw new Error("The backend did not return a repair run ID."); }
+    return result;
 }
 
-export async function postApprove(body) {
-    if (isMockMode()) {
-        return resolveMockApi().postApprove(body);
+export async function postReset({ clear_memory = false } = {}) {
+    if (isMockMode()) { return resolveMockApi().postReset({ clear_memory }); }
+    const result = await mutate("/api/resets", { clearRecipes: Boolean(clear_memory) }, { "Idempotency-Key": crypto.randomUUID() });
+    assessments.clear();
+    if (!result?.resetId) { throw new Error("The backend did not return a reset operation ID."); }
+    const deadline = Date.now() + 300000;
+    while (Date.now() < deadline) {
+        const reset = await fetchJson(`/api/resets/${encodeURIComponent(result.resetId)}`);
+        if (reset.state === "COMPLETED") { return reset; }
+        if (reset.state === "FAILED") { throw new Error(reset.error ?? reset.message ?? "Fixture reset failed. Review the backend operation."); }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    return fetchJson("/api/approve", { method: "POST", body: JSON.stringify(body) });
+    throw new Error("Reset is still pending. Check the backend operation before trying again.");
 }
 
-export async function getPlanPreview(siteId) {
-    if (isMockMode()) {
-        return resolveMockApi().getPlanPreview(siteId);
-    }
-    try {
-        return await fetchJson(`/api/sites/${encodeURIComponent(siteId)}/plan-preview`);
-    } catch {
-        return null;
-    }
-}
-
-export async function postReset(body) {
-    if (isMockMode()) {
-        return resolveMockApi().postReset(body);
-    }
-    return fetchJson("/api/reset", { method: "POST", body: JSON.stringify(body) });
+export async function postPrepare() {
+    if (isMockMode()) { return null; }
+    const result = await mutate("/api/prepare", {}, { "Idempotency-Key": crypto.randomUUID() });
+    assessments.clear();
+    return result;
 }
 
 export function initApiFromUrl() {
@@ -117,6 +216,4 @@ export function initApiFromUrl() {
     }
 }
 
-export function disposeMockTimers() {
-    mockApi?.dispose?.();
-}
+export function disposeMockTimers() { mockApi?.dispose?.(); }

@@ -1,6 +1,6 @@
 # PatchPilot Implementation Tasks
 
-Implementation is in progress on `feature/sujan-core`; unchecked gates still require their stated real integration evidence. See [the core guide](../src/patchpilot/core/README.md) for the implemented modules and current test commands. Follow [plan.md](plan.md) for architecture, contracts, and policy. Commands and paths below are proposed implementation targets. Each task should leave its delivered path working; later checkpoints add the remaining release guarantees. Existing specifications and `AGENTS.md` remain the source requirements. Use [team-plan.md](team-plan.md) for exclusive file ownership and parallel starting work. Dependencies below gate integrated completion, not the start of isolated development. A task lead coordinates contributions; each file is edited only by its assigned owner.
+The merged components are integrated on `fix/demo-integration`. The [demo guide](../docs/demo/demo-script.md) records an actual four-site browser/Anthropic repair with verified recipe reuse. See [README](../README.md) for working setup and validation commands. Unchecked gates below still require their stated evidence; CI, evaluation comparisons, a recording, public-site connections, and broad penetration testing are not claimed complete. Follow [plan.md](plan.md) for the longer-term architecture and [team-plan.md](team-plan.md) for the original parallel work assignments.
 
 ## Phase A: Setup and first real repair
 

@@ -6,6 +6,8 @@ import pytest
 from patchpilot.runtime.deployment import find_free_port
 from patchpilot.runtime.verification import SiteVerifier, CheckResult
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.fixture(scope="module")
 def clinic_fixture():

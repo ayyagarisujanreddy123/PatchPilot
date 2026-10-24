@@ -1,5 +1,20 @@
 /* PatchPilot dashboard — ops console aesthetic, light/dark via prefers-color-scheme */
 
+.registered-url, .fixture-readiness {
+    margin-block: 1.5rem;
+    padding: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.registered-url__row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem; }
+.registered-url__input { flex: 1 1 16rem; min-width: 0; padding: 0.75rem; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.evidence-section { margin-block: 1.5rem; }
+.evidence-section pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; background: var(--surface); padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
+.live-checks { display: grid; gap: 1rem; padding: 0; list-style: none; }
+.live-checks > li { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+.live-checks pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+
 :root {
     color-scheme: light dark;
     --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -75,6 +90,8 @@
 *::after {
     box-sizing: border-box;
 }
+
+[hidden] { display: none !important; }
 
 html {
     font-size: var(--base-size);
@@ -239,14 +256,13 @@ body {
 
 @media (min-width: 901px) {
     .layout--app {
-        grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr) minmax(14rem, 19rem);
-        grid-template-rows: auto;
-        grid-template-areas: "nav main aside";
+        grid-template-columns: minmax(10rem, 12rem) minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+        grid-template-areas: "nav main" "aside main";
     }
 
     .layout--app .nav {
         grid-area: nav;
-        grid-row: auto;
     }
 
     .layout--app .main {
@@ -255,7 +271,6 @@ body {
 
     .layout--app .aside {
         grid-area: aside;
-        grid-column: auto;
         margin-top: 0;
         position: sticky;
         top: var(--space-4);
@@ -307,6 +322,7 @@ body {
 }
 
 .main {
+    min-width: 0;
     background: var(--surface);
     border: 1px solid color-mix(in srgb, var(--border) 80%, var(--accent-indigo));
     border-radius: var(--radius-lg);
@@ -600,7 +616,7 @@ body {
 
 .site-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    grid-template-columns: 1fr;
     gap: var(--space-4);
 }
 
@@ -1449,6 +1465,10 @@ body {
         margin-bottom: var(--space-3);
     }
 
+    .main { padding: var(--space-4); }
+    .site-grid { grid-template-columns: 1fr; }
+    .site-card__row { grid-template-columns: 1fr; gap: var(--space-1); }
+
     .nav__list {
         flex-direction: row;
         flex-wrap: wrap;
@@ -1485,4 +1505,8 @@ body {
     .header__title {
         font-size: 1.5rem;
     }
+}
+
+@media (min-width: 1100px) {
+    .site-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

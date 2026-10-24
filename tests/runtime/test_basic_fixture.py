@@ -8,6 +8,8 @@ import urllib.parse
 import urllib.error
 import pytest
 
+pytestmark = pytest.mark.docker
+
 
 def get_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
