@@ -59,6 +59,10 @@ class Candidate:
 class ProposedPlan:
     plan: RepairPlan
     source: PlanSource
+    model_id: str | None = None
+    provider_message_id: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 @dataclass(frozen=True)
