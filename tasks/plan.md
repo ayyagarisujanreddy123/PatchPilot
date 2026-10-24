@@ -1,6 +1,6 @@
 # PatchPilot Implementation Plan
 
-Status: proposed implementation. Prepared 24 October 2026.
+Status: core implementation in progress on `feature/sujan-core`. Prepared 24 October 2026.
 
 ## 1. Deliverables and scope
 
@@ -14,13 +14,13 @@ Production delivery requires the hosting, identity, durability, and operational 
 
 ## 2. Current state and prerequisites
 
-The repository contains three specifications and `AGENTS.md`; application code, dependency manifests, tests, and CI have not been created. Inspection of this task's shell found `/usr/bin/python3` at Python 3.9.6 and no `uv` or `docker` executable on PATH. Confirm installed applications and PATH before assuming they need installation.
+The core implementation and its tests are described in [the core integration guide](../src/patchpilot/core/README.md). Package bootstrap, runtime adapters, backend, and UI remain separate workstreams. Inspection of this task's shell found `/usr/bin/python3` at Python 3.9.6 and no `uv` or `docker` executable on PATH. Confirm installed applications and PATH before assuming they need installation.
 
 Before runtime work:
 
 1. Provision a project-managed Python 3.12 environment, uv, and an available Docker engine without replacing macOS Python. Pin package and tool versions during scaffolding.
 2. Resolve original and patched PHP/Apache images for the laptop architecture, pull them, and record immutable digests. A pre-fix 8.3 image must be verified rather than guessed from a tag name.
-3. Select one available model provider and model, validate its structured-output support, and set a request budget. Keep credentials in environment configuration. This choice is needed for the live-planner milestone, not for deterministic controller development.
+3. Use the selected Anthropic provider. Configure `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` in the local `.env` or environment. The implemented adapter bounds output to 1,024 tokens and disables automatic SDK retries. Complete its live acceptance check before claiming model-driven results.
 
 The specification's first working upgrade within 75 minutes remains an early target. Record setup, image acquisition, and implementation time separately; report a missed target rather than changing its starting point afterward.
 
@@ -33,7 +33,7 @@ The specification's first working upgrade within 75 minutes remains an early tar
 | Contracts | Pydantic models | Validate manifest, API, persisted records, and model output at their boundaries. |
 | Deployment adapter | Docker SDK for Python | Fixed container operations and structured parameters. |
 | Verification | HTTPX against the actual serving application | Check runtime and behavior through HTTP. |
-| Planning | `Planner` interface, with a Strands structured-output adapter | Keep model choice separate from execution and tests. |
+| Planning | Official Anthropic SDK with a strict JSON-schema proposal | Use the selected API credits while keeping execution separate from model output. |
 | Persistence | JSON snapshots, per-run NDJSON journals, atomic file replacement | Sufficient for one local controller; retain evidence across restarts. |
 | Quality tools | pytest, Ruff, mypy, Playwright for Python | Test decisions, Docker behavior, API contracts, and browser flows. |
 
@@ -117,7 +117,7 @@ Use Python `snake_case` internally, JSON `camelCase` at the API boundary, and `U
 | `RunRecord` | Approval, state, attempts, plan source, original/candidate identities, checks, errors, durations, cleanup and recovery results. |
 | `Recipe` | Compatibility key, successful plan, originating run/site, failed-check observations, verification evidence and time. |
 
-Strands supports typed structured results; still validate the resulting plan against PatchPilot policy. Bound SDK validation retries and provider requests as well as controller attempts. Structured output alone does not confer permission to execute a plan. [Strands structured output](https://strandsagents.com/docs/user-guide/sdk/agents/structured-output/)
+Anthropic supports JSON-schema-constrained responses. The implemented adapter uses the official SDK and validates the returned plan again against PatchPilot policy. It records model/message IDs and token usage, disables SDK retries, and labels real provider results as `MODEL`. Structured output does not confer permission to execute a plan. [Anthropic structured output](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 
 Store run snapshots in `var/runs/<runId>/run.json` and ordered events in `events.ndjson`. Events contain sequence, UTC timestamp, phase, attempt, and sanitized evidence. Store recipes under `var/recipes/`; index idempotency records separately. Version all persisted schemas.
 
@@ -256,7 +256,7 @@ GitHub connection can subsequently support source-code fixes through reviewable 
 | --- | --- |
 | Docker/uv may be installed outside this shell's PATH; current Python is 3.9.6 | Task 01 checks the environment and establishes the project toolchain. |
 | Pre-fix image availability and platform digest are not verified | Task 02 resolves both images, records provenance, and proves actual serving versions before relying on them. |
-| Model provider, credentials, budget, and model ID are not selected | Validate one provider before Task 12; development doubles must not be presented as live AI. |
+| Anthropic live planning is verified; integration with real repairs is pending | The one-request synthetic-upload smoke check passed; complete the model-driven Docker repair and revision gates in Task 12. |
 | Host-port handoff can interrupt service or fail after the original stops | Test restoration early in Task 09 and persistence/reconciliation in Tasks 10–11. |
 | JSON persistence supports only the single-controller prototype | Enforce that boundary now; replace it with durable coordination in P3 before multi-worker hosting. |
 | Real hosting providers and stateful recovery differ | Select one provider/application contract before P2/P4; demonstrate on staging before a production pilot. |

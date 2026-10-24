@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "revision": "php-2026-10-23-v1",
+  "runtimeBranch": "8.3",
+  "fixedVersion": "8.3.36",
+  "fixedAdvisories": ["CVE-2026-109618", "CVE-2026-109619"],
+  "mitigationAdvisory": "CVE-2026-115560",
+  "targetImageAlias": "php83_patched",
+  "targetImageDigest": null,
+  "maxCandidateAttempts": 2,
+  "profiles": {
+    "preserve_basic": {
+      "session.upload_progress.enabled": "0",
+      "upload_max_filesize": "2M",
+      "post_max_size": "8M"
+    },
+    "preserve_uploads": {
+      "session.upload_progress.enabled": "0",
+      "upload_max_filesize": "8M",
+      "post_max_size": "10M"
+    }
+  },
+  "sourceUrl": "https://www.php.net/index.php",
+  "reviewedOn": "2026-10-24"
+}

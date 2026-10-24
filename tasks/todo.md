@@ -1,6 +1,6 @@
 # PatchPilot Implementation Tasks
 
-All tasks are pending. Follow [plan.md](plan.md) for architecture, contracts, and policy. Commands and paths below are proposed implementation targets. Each task should leave its delivered path working; later checkpoints add the remaining release guarantees. Existing specifications and `AGENTS.md` remain the source requirements. Use [team-plan.md](team-plan.md) for exclusive file ownership and parallel starting work. Dependencies below gate integrated completion, not the start of isolated development. A task lead coordinates contributions; each file is edited only by its assigned owner.
+Implementation is in progress on `feature/sujan-core`; unchecked gates still require their stated real integration evidence. See [the core guide](../src/patchpilot/core/README.md) for the implemented modules and current test commands. Follow [plan.md](plan.md) for architecture, contracts, and policy. Commands and paths below are proposed implementation targets. Each task should leave its delivered path working; later checkpoints add the remaining release guarantees. Existing specifications and `AGENTS.md` remain the source requirements. Use [team-plan.md](team-plan.md) for exclusive file ownership and parallel starting work. Dependencies below gate integrated completion, not the start of isolated development. A task lead coordinates contributions; each file is edited only by its assigned owner.
 
 ## Phase A: Setup and first real repair
 
@@ -217,7 +217,7 @@ All tasks are pending. Follow [plan.md](plan.md) for architecture, contracts, an
 
 **Lead:** Sujan.
 
-**Description:** Implement the Strands adapter against one configured provider/model, using the typed plan contract and normalized failure evidence.
+**Description:** Use the implemented official Anthropic SDK adapter with the typed plan contract and normalized failure evidence. Local `.env` loading, mocked HTTP checks, and a one-request live synthetic-upload smoke check passed. Real model-driven Docker repair and revision remain required before completing this gate.
 
 **Acceptance criteria:**
 
@@ -228,7 +228,7 @@ All tasks are pending. Follow [plan.md](plan.md) for architecture, contracts, an
 
 **Dependencies:** 11; provider/model selection and credentials. **Estimated scope:** Medium, four files.
 
-**Files likely touched:** `src/patchpilot/core/planner.py`, `src/patchpilot/core/prompts/repair.txt`, `tests/core/test_planner.py`, `tests/core/test_live_planner.py`.
+**Files likely touched:** `src/patchpilot/core/planner.py`, `src/patchpilot/core/README.md`, `tests/core/test_planner.py`, `tests/core/test_live_planner.py`.
 
 ### Checkpoint C: Observable autonomous execution
 

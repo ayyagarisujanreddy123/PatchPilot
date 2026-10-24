@@ -47,7 +47,7 @@ Exclusive ownership prevents planned same-file edits. Shared contracts and frequ
 
 **First PRs:** assessment/policy plus focused tests, followed by controller transitions using private fakes. Cover a passing candidate, failed staging, one revision, and exhausted attempts. This can begin before Docker, the API, or UI is ready.
 
-**Then:** integrate Nicholas's adapter/verifier; code activation/recovery decisions and interrupted-run recovery; add the real Strands planner; implement exact compatibility keys and recipe eligibility; process the fleet sequentially. Teammate 3 provides persistence through store interfaces and invokes Sujan's recovery service at startup. Wire CLI commands to the same engine.
+**Then:** integrate Nicholas's adapter/verifier; code activation/recovery decisions and interrupted-run recovery; integrate the real Anthropic planner; implement exact compatibility keys and recipe eligibility; process the fleet sequentially. Teammate 3 provides persistence through store interfaces and invokes Sujan's recovery service at startup. Wire CLI commands to the same engine.
 
 **Done when:** a real approved repair passes live checks; failures produce accurate rejection/restoration outcomes; matching sites reuse a verified recipe with fresh checks. Model output cannot change tests or execute arbitrary commands. Sujan leads integration and the technical demo explanation.
 
@@ -97,7 +97,7 @@ Exclusive ownership prevents planned same-file edits. Shared contracts and frequ
 
 ## 4. Shared contract version 1
 
-Freeze these interfaces at kickoff. Teammate 3 implements them in `shared/`; Sujan reviews changes. Consumers request revisions rather than editing shared types. Python properties use `snake_case`, JSON fields use `camelCase`, and state/source values use uppercase enums.
+The implemented engine interfaces are in [core/ports.py](../src/patchpilot/core/ports.py), with normalized core values in [core/domain.py](../src/patchpilot/core/domain.py). Sujan owns these core-native contracts. Teammate 3 owns shared/Pydantic API schemas and adapters; map the core objects to JSON instead of duplicating repair decisions. Request core changes from Sujan and shared API changes from Teammate 3. Python properties use `snake_case`, JSON fields use `camelCase`, and state/source values use uppercase enums. The [core guide](../src/patchpilot/core/README.md) includes tested dependencies and integration instructions.
 
 ### Registered targets
 
@@ -114,17 +114,17 @@ These are planned bindings, not currently running sites. Nicholas checks availab
 
 | Owner | Interface | Contract |
 | --- | --- | --- |
-| Sujan | `Core.assess(snapshot, checks, policy) -> Assessment` | Match the observed runtime to approved advisories; distinguish applicability, baseline failure, and unsupported environments. |
-| Sujan | `Planner.propose(context, failures) -> RepairPlan` | Return only target-image alias, configuration-profile ID, and rationale. Controller assigns provenance. |
-| Nicholas | `Runtime.inspect(site) -> DeploymentSnapshot` | Return actual original identity/settings and observed serving information. |
-| Nicholas | `Runtime.stage(site, plan, run_id, attempt) -> CandidateSpec` | Return candidate endpoint, immutable content/image identity, and resource handle. |
-| Nicholas | `Verifier.check(site, deployment, phase) -> list[CheckResult]` | Same assertions, with baseline/candidate/live/restoration expectations. |
-| Nicholas | `Runtime.activate(site, candidate, original) -> DeploymentSnapshot` | Use the tested content at the original address; raise a typed failure if uncertain. |
-| Nicholas | `Runtime.restore(site, original) -> DeploymentSnapshot` | Restore the retained original; verifier independently checks restoration. |
-| Nicholas | `Runtime.cleanup(candidate) -> CleanupResult` | Remove owned staging resources and report any failures. |
+| Sujan | `assess(site, snapshot, checks, policy) -> Assessment` | Match the observed runtime to approved advisories; distinguish applicability, baseline failure, and unsupported environments. |
+| Sujan | `Planner.propose(context, failures, timeout_s=...) -> ProposedPlan` | Model output contains only image alias, profile ID, and rationale; the adapter adds provenance, model/message IDs, and usage. |
+| Nicholas | `Runtime.inspect(site, timeout_s=...) -> DeploymentSnapshot` | Return actual original identity/settings and observed serving information. |
+| Nicholas | `Runtime.stage(site, validated_plan, run_id, attempt, timeout_s=...) -> Candidate` | The validated plan supplies the approved digest/profile. Return a normalized candidate snapshot with its endpoint, content/image identity, and handle. |
+| Nicholas | `Verifier.check(site, deployment, phase, timeout_s=...) -> tuple[CheckResult, ...]` | Same assertions, with baseline/candidate/live/restoration expectations. |
+| Nicholas | `Runtime.activate(site, candidate, original, timeout_s=...) -> DeploymentSnapshot` | Use the tested content at the original address; raise a typed failure if uncertain. |
+| Nicholas | `Runtime.restore(site, original, timeout_s=...) -> DeploymentSnapshot` | Restore the retained original; verifier independently checks restoration. |
+| Nicholas | `Runtime.cleanup(site, run_id, attempt, timeout_s=...) -> None` | Remove only staging resources owned by that run/attempt, including partial staging without a returned handle; raise on failure. |
 | Teammate 3 | `RunStore` / `RecipeStore` / `EventSink` | Persist typed records atomically and append ordered events; expose no raw paths to the model. |
-| Sujan | `RepairService.run(approval, dependencies) -> RunRecord` | Own bounded state transitions, recipe eligibility, retries, activation gates, and event production. |
-| Sujan | `Core.recover_interrupted(record, dependencies) -> RunRecord` | Decide recovery within the recorded approval and observed state; backend startup invokes this instead of inventing its own recovery rules. |
+| Sujan | `RepairController.run(site, approval, run_id=...) -> RunResult` | Own bounded state transitions, recipe eligibility, retries, activation gates, and event production. |
+| Sujan | Planned: `recover_interrupted(record, dependencies)` | Decide recovery within the recorded approval and observed state; backend startup invokes this instead of inventing its own recovery rules. |
 | Teammate 3 | `submit_run(approval_id, idempotency_key) -> run reference` | Validate authority and reserve work; HTTP request completion does not stop the worker. |
 
 The backend composition layer supplies runtime, verifier, planner, stores, and event sink to the controller. Core and runtime code depend on shared interfaces, not on backend route handlers. Blocking operations have explicit timeouts; the backend runs them off the request event loop.
