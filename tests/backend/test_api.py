@@ -38,7 +38,7 @@ def test_endpoints_happy_path(client: TestClient):
     # 1. GET /
     index_resp = client.get("/")
     assert index_resp.status_code == 200
-    assert "PatchPilot Controller" in index_resp.text
+    assert "PatchPilot" in index_resp.text
 
     # 2. GET /api/sites
     sites_resp = client.get("/api/sites")

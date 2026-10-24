@@ -171,6 +171,7 @@ def create_app(
         )
 
     # Web UI / static serving
+    static_root = BASE_DIR / "src" / "patchpilot" / "static"
     web_dir = BASE_DIR / "src" / "patchpilot" / "web"
     static_dir = web_dir / "static"
     templates_dir = web_dir / "templates"
@@ -180,7 +181,7 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        # Serve Teammate 4 templates if present
+        # 1. Serve Teammate 4 templates if present
         dashboard_template = templates_dir / "dashboard.html"
         if dashboard_template.is_file():
             from jinja2 import Environment, FileSystemLoader
@@ -193,7 +194,12 @@ def create_app(
             }
             return HTMLResponse(template.render(context))
 
-        # Default placeholder HTML page when Teammate 4 UI files are not yet created
+        # 2. Serve static/index.html if present
+        static_index = static_root / "index.html"
+        if static_index.is_file():
+            return HTMLResponse(static_index.read_text(encoding="utf-8"))
+
+        # Default placeholder HTML page when neither is created
         return HTMLResponse(
             """<!DOCTYPE html>
 <html lang="en">
@@ -228,6 +234,9 @@ def create_app(
 </body>
 </html>"""
         )
+
+    if static_root.is_dir():
+        app.mount("/", StaticFiles(directory=str(static_root)), name="static_root")
 
     return app
 
