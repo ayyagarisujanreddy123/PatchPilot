@@ -1,0 +1,74 @@
+[
+  {
+    "id": "pantry-a",
+    "name": "Midwest Food Pantry",
+    "endpoint": "http://127.0.0.1:8081",
+    "port": 8081,
+    "capabilityGroup": "basic",
+    "requiredCapabilities": ["homepage", "contact"],
+    "templateRevision": "basic-v1",
+    "organization": "Midwest Food Pantry",
+    "tagline": "Providing nourishing groceries to our community every week.",
+    "labels": {
+      "app": "patchpilot-fixture",
+      "site_id": "pantry-a",
+      "managed_by": "patchpilot"
+    },
+    "originalImage": "php:8.3.35-apache",
+    "originalConfigProfile": "pantry-default"
+  },
+  {
+    "id": "pantry-b",
+    "name": "Hope Community Pantry",
+    "endpoint": "http://127.0.0.1:8082",
+    "port": 8082,
+    "capabilityGroup": "basic",
+    "requiredCapabilities": ["homepage", "contact"],
+    "templateRevision": "basic-v1",
+    "organization": "Hope Community Pantry",
+    "tagline": "Neighbors helping neighbors with dignity, care, and support.",
+    "labels": {
+      "app": "patchpilot-fixture",
+      "site_id": "pantry-b",
+      "managed_by": "patchpilot"
+    },
+    "originalImage": "php:8.3.35-apache",
+    "originalConfigProfile": "pantry-default"
+  },
+  {
+    "id": "clinic-a",
+    "name": "Valley Free Health Clinic",
+    "endpoint": "http://127.0.0.1:8083",
+    "port": 8083,
+    "capabilityGroup": "upload",
+    "requiredCapabilities": ["homepage", "contact", "upload"],
+    "templateRevision": "upload-v1",
+    "organization": "Valley Free Health Clinic",
+    "tagline": "Quality medical and wellness services for all families.",
+    "labels": {
+      "app": "patchpilot-fixture",
+      "site_id": "clinic-a",
+      "managed_by": "patchpilot"
+    },
+    "originalImage": "php:8.3.35-apache",
+    "originalConfigProfile": "clinic-upload-original"
+  },
+  {
+    "id": "clinic-b",
+    "name": "St. Jude Community Clinic",
+    "endpoint": "http://127.0.0.1:8084",
+    "port": 8084,
+    "capabilityGroup": "upload",
+    "requiredCapabilities": ["homepage", "contact", "upload"],
+    "templateRevision": "upload-v1",
+    "organization": "St. Jude Community Clinic",
+    "tagline": "Compassionate outpatient care and medical records review.",
+    "labels": {
+      "app": "patchpilot-fixture",
+      "site_id": "clinic-b",
+      "managed_by": "patchpilot"
+    },
+    "originalImage": "php:8.3.35-apache",
+    "originalConfigProfile": "clinic-upload-original"
+  }
+]
